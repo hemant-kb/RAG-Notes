@@ -1,0 +1,2636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transformer Architecture — Deep Dive</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --panel:#ffffff; --ink:#1c2330; --muted:#5b6577; --line:#e4e8ef;
+    --code-bg:#1e2430; --code-ink:#e6edf3;
+    --embed:#6d5dfc; --index:#0ea5a4; --retr:#f59e0b; --adv:#ec4899; --eval:#3b82f6;
+    --good:#16a34a; --warn:#d97706; --bad:#dc2626; --insight:#6d5dfc;
+    --shadow:0 1px 3px rgba(20,30,50,.06),0 8px 24px rgba(20,30,50,.06);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px; line-height:1.65;
+  }
+  /* ---------- layout ---------- */
+  .shell{display:flex; align-items:flex-start}
+  .toc{
+    position:sticky; top:0; align-self:flex-start; flex:0 0 290px; width:290px;
+    height:100vh; overflow-y:auto; padding:24px 18px; background:var(--panel);
+    border-right:1px solid var(--line);
+  }
+  .toc h2{font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:18px 8px 8px}
+  .toc h2:first-child{margin-top:0}
+  .toc a{
+    display:block; padding:6px 10px; border-radius:8px; text-decoration:none;
+    color:var(--ink); font-size:14px; border-left:3px solid transparent;
+  }
+  .toc a:hover{background:var(--bg); border-left-color:var(--embed)}
+  .toc .grp-embed{border-left-color:var(--embed)} .toc .grp-index{border-left-color:var(--index)}
+  .toc .grp-retr{border-left-color:var(--retr)} .toc .grp-adv{border-left-color:var(--adv)}
+  .toc .grp-eval{border-left-color:var(--eval)}
+  main{flex:1 1 auto; min-width:0; padding:0 0 120px}
+  .wrap{max-width:920px; margin:0 auto; padding:0 28px}
+  /* ---------- hero ---------- */
+  .hero{
+    background:linear-gradient(135deg,#1e2430,#2b2150 55%,#3a1d4d);
+    color:#fff; padding:56px 28px; margin-bottom:8px;
+  }
+  .hero .wrap{max-width:920px}
+  .hero h1{font-size:40px; margin:0 0 8px; letter-spacing:-.02em}
+  .hero p{font-size:18px; color:#c9cfe0; margin:0; max-width:640px}
+  .hero .pills{margin-top:22px; display:flex; flex-wrap:wrap; gap:8px}
+  .hero .pill{background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18);
+    padding:5px 12px; border-radius:999px; font-size:13px}
+  /* ---------- sections ---------- */
+  .part{padding-top:40px; margin-top:24px; border-top:1px solid var(--line)}
+  .part:first-of-type{border-top:none}
+  .badge{display:inline-block; font-size:12px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; color:#fff; padding:4px 10px; border-radius:6px; margin-bottom:10px}
+  .b-embed{background:var(--embed)} .b-index{background:var(--index)} .b-retr{background:var(--retr)}
+  .b-adv{background:var(--adv)} .b-eval{background:var(--eval)}
+  h2.title{font-size:30px; margin:.1em 0 .4em; letter-spacing:-.01em}
+  h3{font-size:21px; margin:1.6em 0 .5em}
+  h4{font-size:17px; margin:1.3em 0 .4em; color:var(--ink)}
+  p{margin:.7em 0}
+  /* ---------- cards / callouts ---------- */
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:20px 22px; margin:18px 0; box-shadow:var(--shadow)}
+  .callout{border-radius:12px; padding:16px 18px; margin:18px 0; border:1px solid; border-left-width:5px; display:flex; gap:14px; align-items:flex-start}
+  .callout .ico{font-size:22px; line-height:1.3; flex:0 0 auto}
+  .callout .body{flex:1; min-width:0}
+  .callout .body > p{margin:.3em 0}
+  .callout .body > p:first-of-type{margin-top:0}
+  .callout .body > p:last-child{margin-bottom:0}
+  .c-insight{background:#f3f1ff; border-color:#c4b5fd; border-left-color:var(--insight)}
+  .c-tip{background:#ecfdf5; border-color:#a7f3d0; border-left-color:var(--good)}
+  .c-warn{background:#fff7ed; border-color:#fdba74; border-left-color:var(--warn)}
+  .c-note{background:#eff6ff; border-color:#93c5fd; border-left-color:var(--eval)}
+  .callout .body > b:first-child{display:block; font-size:12.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px}
+  .c-insight .body > b:first-child{color:var(--insight)} .c-tip .body > b:first-child{color:var(--good)}
+  .c-warn .body > b:first-child{color:var(--warn)} .c-note .body > b:first-child{color:var(--eval)}
+  /* ---------- tables ---------- */
+  .tbl{width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px; overflow:hidden;
+    border-radius:12px; box-shadow:var(--shadow)}
+  .tbl th,.tbl td{padding:11px 14px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top}
+  .tbl thead th{background:#2b3242; color:#fff; font-size:13px; letter-spacing:.03em}
+  .tbl tbody tr:nth-child(even){background:#fafbfd}
+  .tbl tbody tr:hover{background:#f1efff}
+  .tbl td:first-child{font-weight:600}
+  .yes{color:var(--good); font-weight:700} .no{color:var(--bad); font-weight:700}
+  .scroll-x{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  /* ---------- formula card ---------- */
+  .formula{background:#f4f1ff; border:1px solid #ddd6fe; border-left:4px solid var(--embed);
+    border-radius:10px; padding:14px 18px; margin:16px 0; font-size:16px; overflow-x:auto}
+  .formula .eq{font-family:"SF Mono",Menlo,Consolas,monospace; font-size:15px}
+  .formula .where{font-size:14px; color:var(--muted); margin-top:8px}
+  .formula .sig{font-size:13.5px; color:#3a2d6d; margin-top:8px; padding-top:8px; border-top:1px dashed #ddd6fe}
+  .formula .sig b{color:var(--embed)}
+  /* step-by-step worked maths */
+  .mathbox{background:#fbfaff; border:1px solid #e9e4ff; border-radius:12px; padding:6px 4px; margin:16px 0}
+  .mathbox .step{display:flex; gap:12px; padding:10px 16px; border-bottom:1px solid #efeafe}
+  .mathbox .step:last-child{border-bottom:none}
+  .mathbox .num{flex:0 0 26px; height:26px; border-radius:50%; background:var(--embed); color:#fff;
+    font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center}
+  .mathbox .stepbody{flex:1; min-width:0}
+  .mathbox .stepbody .lead{font-weight:600; margin:2px 0 4px}
+  .mono{font-family:"SF Mono",Menlo,Consolas,monospace; font-size:14px}
+  .paper{display:inline-block; font-size:12.5px; background:#eef2ff; border:1px solid #c7d2fe;
+    border-radius:8px; padding:4px 10px; margin:6px 6px 6px 0; color:#3730a3; text-decoration:none}
+  .paper:hover{background:#e0e7ff}
+  .paper b{color:#1e1b4b}
+  /* ---------- infographic helpers ---------- */
+  .fig{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px;
+    margin:20px 0; box-shadow:var(--shadow)}
+  .fig .cap{font-size:13px; color:var(--muted); text-align:center; margin-top:10px}
+  .fig svg{display:block; max-width:100%; height:auto; margin:0 auto}
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media(max-width:760px){.two-col{grid-template-columns:1fr}}
+  /* ---------- part divider ---------- */
+  .part-head{margin:56px 0 8px; padding:28px; border-radius:16px; color:#fff}
+  .part-head h2{margin:0; font-size:13px; letter-spacing:.12em; text-transform:uppercase; opacity:.85}
+  .part-head h1{margin:.15em 0 0; font-size:30px; letter-spacing:-.01em}
+  .part-head p{margin:.5em 0 0; color:rgba(255,255,255,.85); font-size:15px}
+  .ph-embed{background:linear-gradient(135deg,#5b4bd6,#7c5cff)}
+  .ph-index{background:linear-gradient(135deg,#0b8b8a,#12b3a3)}
+  .ph-retr{background:linear-gradient(135deg,#d98706,#f59e0b)}
+  .ph-adv{background:linear-gradient(135deg,#be2d72,#ec4899)}
+  .ph-eval{background:linear-gradient(135deg,#2563eb,#3b82f6)}
+  /* chapter format helpers */
+  .chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--muted);background:#eceef4;border-radius:999px;padding:3px 10px;margin:14px 0 4px}
+  .qa{margin:10px 0}
+  .qa details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:0;margin:8px 0;overflow:hidden}
+  .qa summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;background:#f4f1ff}
+  .qa summary::-webkit-details-marker{display:none}
+  .qa summary::before{content:"❓ ";}
+  .qa details[open] summary{border-bottom:1px solid var(--line)}
+  .qa .ans{padding:12px 16px}
+  ul.clean{margin:.5em 0;padding-left:1.2em} ul.clean li{margin:.3em 0}
+  .proscons{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+  @media(max-width:760px){.proscons{grid-template-columns:1fr}}
+  .pc{border-radius:12px;padding:14px 18px;border:1px solid}
+  .pc-pro{background:#ecfdf3;border-color:#bbf7d0} .pc-con{background:#fef2f2;border-color:#fecaca}
+  .pc h4{margin:.1em 0 .4em} .pc-pro h4{color:var(--good)} .pc-con h4{color:var(--bad)}
+  .pc ul{margin:.3em 0;padding-left:1.1em} .pc li{margin:.25em 0;font-size:14.5px}
+  .summary-box{background:#1e2430;color:#e6edf3;border-radius:12px;padding:16px 20px;margin:18px 0}
+  .summary-box b{color:#82aaff}
+  code.inline{background:#eceef4; padding:2px 6px; border-radius:5px; font-size:.9em;
+    font-family:"SF Mono",Menlo,Consolas,monospace; color:#3a2d6d}
+  /* ---------- mobile ---------- */
+  @media(max-width:980px){
+    .toc{display:none}
+    .hero h1{font-size:30px}
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ============ SIDEBAR TOC ============ -->
+  <nav class="toc">
+    <a href="#top" style="font-weight:700;border-left-color:#6d5dfc">⚙️ Transformer Deep Dive</a>
+
+    <h2>Part 0 · Prerequisites</h2>
+    <a class="grp-embed" href="#p1">P.1 · Context Vector</a>
+    <a class="grp-embed" href="#p2">P.2 · Word Embeddings</a>
+
+    <h2>Part 1 · Encoder–Decoder</h2>
+    <a class="grp-index" href="#c1">1 · Seq2Seq Mechanism</a>
+
+    <h2>Part 2 · Attention</h2>
+    <a class="grp-retr" href="#c2">2 · Bahdanau &amp; Luong</a>
+
+    <h2>Part 3 · Self-Attention</h2>
+    <a class="grp-adv" href="#c3">3 · Static → Dynamic</a>
+
+    <h2>Part 4 · Multi-Head</h2>
+    <a class="grp-embed" href="#c4">4 · Multi-Head Attention</a>
+
+    <h2>Part 5 · Positional Encoding</h2>
+    <a class="grp-index" href="#c5">5 · Sinusoidal PE</a>
+
+    <h2>Part 6 · Normalization</h2>
+    <a class="grp-retr" href="#c6">6 · BatchNorm vs LayerNorm</a>
+
+    <h2>Part 7 · Full Transformer</h2>
+    <a class="grp-eval" href="#c7">7 · The Complete Model</a>
+
+    <h2>Part 8 · Decoder Deep Dive</h2>
+    <a class="grp-adv" href="#c8">8 · Feed-Forward Network</a>
+    <a class="grp-adv" href="#c9">9 · Masked Self-Attention</a>
+    <a class="grp-adv" href="#c10">10 · Cross-Attention</a>
+    <a class="grp-adv" href="#c11">11 · End-to-End Decode</a>
+
+    <h2>Part 9 · Data-Flow Walkthrough</h2>
+    <a class="grp-eval" href="#c12">12 · Encoder Flow + Shapes</a>
+    <a class="grp-eval" href="#c13">13 · Decoder Flow + Inference</a>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <header class="hero" id="top">
+      <div class="wrap">
+        <h1>⚙️ Transformer Architecture</h1>
+        <p>A step-by-step story of the model that powers every modern LLM — told as <b>What → Why → How</b>.
+        From the context-vector bottleneck to attention, multi-head, positional encoding, normalization, and
+        the full encoder–decoder of <i>"Attention Is All You Need"</i>. Every concept with math, a worked
+        numeric example, and an infographic.</p>
+        <div class="pills">
+          <span class="pill">9 Parts · 13 Chapters</span>
+          <span class="pill">Seq2Seq → Transformer</span>
+          <span class="pill">Math · Diagrams · Worked Examples</span>
+          <span class="pill">Matrix-Shape Flow</span>
+          <span class="pill">Vaswani 2017</span>
+          <span class="pill">Verified Arithmetic</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 0 — PREREQUISITES                                         ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-embed">
+        <h2>Part 0</h2>
+        <h1>Prerequisites</h1>
+        <p>Two ideas you must own before the story begins: the <b>context vector</b> (the thing the whole
+        Transformer story is built to fix) and <b>word embeddings</b> (the numbers everything operates on).</p>
+      </div>
+
+      <!-- ---- P.1 Context Vector ---- -->
+      <section class="part" id="p1" style="border-top:none">
+        <span class="badge b-embed">Prerequisite 1</span>
+        <h2 class="title">What is a Context Vector?</h2>
+
+        <span class="chip">What</span>
+        <p>A <b>context vector</b> is a single fixed-length list of numbers that is meant to summarise the
+        <i>entire meaning</i> of an input sequence (a sentence). In the classic translation model, the
+        encoder reads the whole source sentence and squeezes everything it understood into one vector
+        <span class="mono">c</span>; the decoder then reads only <span class="mono">c</span> and produces the
+        output sentence.</p>
+
+        <div class="formula">
+          <div class="eq">c = encode(x<sub>1</sub>, x<sub>2</sub>, …, x<sub>n</sub>)&nbsp;&nbsp;∈&nbsp;ℝ<sup>d</sup></div>
+          <div class="where">One vector of dimension d carries the meaning of an n-word sentence — no matter how long n is.</div>
+          <div class="sig"><b>Significance:</b> this is the <b>bottleneck</b>. Forcing a 50-word sentence and a
+          3-word sentence through the <i>same size</i> vector is the central limitation that <b>attention</b>
+          (Part 2) and ultimately the <b>Transformer</b> were invented to remove.</div>
+        </div>
+
+        <span class="chip">Why it matters</span>
+        <p>Everything that follows is a reaction to this one idea. RNN seq2seq <i>has</i> a single context
+        vector → information is lost. Attention lets the decoder build a <i>fresh</i> context vector at every
+        step. Self-attention lets <i>every</i> word build its own context vector from every other word. Keep
+        the phrase "context vector" in mind — the whole architecture is the evolution of how it is built.</p>
+
+        <div class="callout c-note">
+          <div class="ico">🎒</div>
+          <div class="body">
+            <b>Real-world analogy</b>
+            <p>Imagine summarising a whole book onto a single index card, handing only that card to a friend,
+            and asking them to rewrite the book in another language from the card alone. For a paragraph it
+            works; for a 400-page novel the card cannot hold enough. That card is the context vector.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- P.2 Word Embeddings ---- -->
+      <section class="part" id="p2">
+        <span class="badge b-embed">Prerequisite 2</span>
+        <h2 class="title">Word Embeddings — In Detail</h2>
+
+        <span class="chip">What</span>
+        <p>A <b>word embedding</b> is a dense vector of real numbers that represents a word's <i>meaning</i> in
+        a continuous space. Words with similar meaning sit close together; the geometry of the space encodes
+        relationships. This replaces the old <b>one-hot</b> representation, where every word is a giant vector
+        of zeros with a single 1 — vectors that are all equidistant and carry no meaning.</p>
+
+        <div class="fig">
+          <svg viewBox="0 0 720 270" role="img" aria-label="One-hot versus dense embedding">
+            <style>
+              .x0_lbl{font-size:13px;fill:#1c2330;font-weight:600}
+              .x0_sub{font-size:11.5px;fill:#5b6577}
+              .x0_cell{font-size:12px;font-family:monospace;fill:#1c2330}
+            </style>
+            <!-- one hot side -->
+            <text class="x0_lbl" x="20" y="30">One-hot (sparse, no meaning)</text>
+            <text class="x0_sub" x="20" y="48">10,000-dim · all words equidistant</text>
+            <rect x="20" y="62" width="300" height="34" rx="6" fill="#fef2f2" stroke="#fecaca"/>
+            <text class="x0_cell" x="32" y="84">king  = [0 0 … 1 … 0 0 0]</text>
+            <rect x="20" y="104" width="300" height="34" rx="6" fill="#fef2f2" stroke="#fecaca"/>
+            <text class="x0_cell" x="32" y="126">queen = [0 0 0 … 0 1 … 0]</text>
+            <text class="x0_sub" x="20" y="162">cos(king, queen) = 0  (orthogonal → "unrelated")</text>
+            <!-- divider -->
+            <line x1="360" y1="60" x2="360" y2="200" stroke="#e4e8ef" stroke-dasharray="4 4"/>
+            <!-- dense side -->
+            <text class="x0_lbl" x="384" y="30">Dense embedding (meaningful)</text>
+            <text class="x0_sub" x="384" y="48">e.g. 300-dim · distance = similarity</text>
+            <rect x="384" y="62" width="316" height="34" rx="6" fill="#ecfdf3" stroke="#bbf7d0"/>
+            <text class="x0_cell" x="396" y="84">king  = [0.90 0.70 0.10]</text>
+            <rect x="384" y="104" width="316" height="34" rx="6" fill="#ecfdf3" stroke="#bbf7d0"/>
+            <text class="x0_cell" x="396" y="126">queen = [0.80 0.90 0.15]</text>
+            <text class="x0_sub" x="384" y="162">cos(king, queen) = 0.98  (very close → related)</text>
+            <text class="x0_sub" x="384" y="186">+ supports arithmetic: king − man + woman ≈ queen</text>
+          </svg>
+          <div class="cap">One-hot vectors are orthogonal and meaningless; dense embeddings place related words close together.</div>
+        </div>
+
+        <span class="chip">How — the embedding space</span>
+        <p>Each dimension is a learned latent feature (loosely: "royalty", "gender", "plural", …). The model
+        learns these numbers from data so that the <b>distance</b> between vectors reflects <b>semantic
+        similarity</b>. Two famous properties:</p>
+        <ul class="clean">
+          <li><b>Similarity:</b> related words have high cosine similarity (small angle).</li>
+          <li><b>Vector arithmetic:</b> directions encode relationships, so
+            <span class="mono">king − man + woman ≈ queen</span> holds geometrically.</li>
+        </ul>
+
+        <span class="chip">Worked example — cosine similarity</span>
+        <p>Take toy 3-dim embeddings <span class="mono">king = [0.9, 0.7, 0.1]</span> and
+        <span class="mono">queen = [0.8, 0.9, 0.15]</span>. Cosine similarity measures the angle between them:</p>
+        <div class="formula">
+          <div class="eq">cos(a, b) = (a · b) / ( ‖a‖ · ‖b‖ )</div>
+        </div>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Dot product a · b</div>
+            <div class="mono">0.9·0.8 + 0.7·0.9 + 0.1·0.15 = 0.72 + 0.63 + 0.015 = <b>1.365</b></div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Magnitudes</div>
+            <div class="mono">‖king‖  = √(0.81+0.49+0.01) = √1.31 = <b>1.1446</b></div>
+            <div class="mono">‖queen‖ = √(0.64+0.81+0.0225) = √1.4725 = <b>1.2135</b></div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">Cosine</div>
+            <div class="mono">1.365 / (1.1446 × 1.2135) = 1.365 / 1.3890 = <b>0.9828</b></div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">≈ 0.98 → the two words point almost the same way → strongly related. ✓</div>
+          </div></div>
+        </div>
+
+        <div class="callout c-insight">
+          <div class="ico">💡</div>
+          <div class="body">
+            <b>Why embeddings are the foundation</b>
+            <p>A Transformer never sees letters or words — it only ever manipulates embedding vectors. Every
+            mechanism in this handbook (attention scores, multi-head, FFN) is linear algebra on top of these
+            vectors. Get embeddings, and you can follow everything that follows.</p>
+          </div>
+        </div>
+
+        <a class="paper" href="https://arxiv.org/abs/1301.3781" target="_blank"><b>Mikolov et al. 2013</b> — Efficient Estimation of Word Representations (Word2Vec)</a>
+        <a class="paper" href="https://nlp.stanford.edu/projects/glove/" target="_blank"><b>Pennington et al. 2014</b> — GloVe</a>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 1 — ENCODER–DECODER                                       ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-index">
+        <h2>Part 1</h2>
+        <h1>The Encoder–Decoder (Seq2Seq)</h1>
+        <p>The model that came before Transformers. Understand its mechanism — and the single flaw that
+        motivated everything else.</p>
+      </div>
+
+      <section class="part" id="c1" style="border-top:none">
+        <span class="badge b-index">Chapter 1</span>
+        <h2 class="title">Seq2Seq: Mechanism &amp; the Bottleneck</h2>
+
+        <span class="chip">What</span>
+        <p>A <b>sequence-to-sequence</b> model maps an input sequence (e.g. an English sentence) to an output
+        sequence (e.g. its French translation). It has two RNNs (LSTM/GRU):</p>
+        <ul class="clean">
+          <li><b>Encoder:</b> reads the input word-by-word, updating a hidden state. Its <i>final</i> hidden
+            state becomes the <b>context vector c</b>.</li>
+          <li><b>Decoder:</b> starts from <span class="mono">c</span> and generates the output word-by-word,
+            feeding each predicted word back in as the next input.</li>
+        </ul>
+
+        <span class="chip">How — the math (basics)</span>
+        <div class="formula">
+          <div class="eq">Encoder:&nbsp; h<sub>t</sub> = tanh( W<sub>x</sub> x<sub>t</sub> + W<sub>h</sub> h<sub>t−1</sub> )&nbsp;&nbsp;&nbsp; c = h<sub>n</sub></div>
+          <div class="eq" style="margin-top:6px">Decoder:&nbsp; s<sub>t</sub> = tanh( W<sub>y</sub> y<sub>t−1</sub> + W<sub>s</sub> s<sub>t−1</sub> )&nbsp;&nbsp;&nbsp; s<sub>0</sub> = c</div>
+          <div class="eq" style="margin-top:6px">Output:&nbsp; y<sub>t</sub> = softmax( W<sub>o</sub> s<sub>t</sub> )</div>
+          <div class="where">The decoder is seeded once with c, then runs on its own. Every output word depends on c only indirectly through s.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 548" role="img" aria-label="Seq2Seq math flow">
+            <defs><marker id="s1a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x1_bx{rx:11;fill:#e0f2f1;stroke:#0ea5a4}.x1_bt{font-size:13px;font-weight:600;fill:#0f766e;text-anchor:middle}
+              .x1_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x1_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s1a)}</style>
+            <rect class="x1_bx" x="130" y="24" width="380" height="44"/><text class="x1_bt" x="320" y="51">Input token  xₜ</text>
+            <line class="x1_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x1_fm" x="320" y="92">encoder RNN (per step):</text>
+            <text class="x1_fm" x="320" y="108">hₜ = tanh(Wₓ·xₜ + W_h·hₜ₋₁)</text>
+            <rect class="x1_bx" x="130" y="138" width="380" height="44"/><text class="x1_bt" x="320" y="165">Hidden state  hₜ</text>
+            <line class="x1_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x1_fm" x="320" y="214">keep the last step → context</text>
+            <rect class="x1_bx" x="130" y="252" width="380" height="44"/><text class="x1_bt" x="320" y="279">Context  c = h_n   (the bottleneck)</text>
+            <line class="x1_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x1_fm" x="320" y="320">decoder RNN, s₀ = c:</text>
+            <text class="x1_fm" x="320" y="336">sₜ = tanh(W_y·yₜ₋₁ + W_s·sₜ₋₁)</text>
+            <rect class="x1_bx" x="130" y="366" width="380" height="44"/><text class="x1_bt" x="320" y="393">Decoder state  sₜ</text>
+            <line class="x1_ar" x1="320" y1="410" x2="320" y2="478"/>
+            <text class="x1_fm" x="320" y="442">yₜ = softmax(W_o·sₜ)</text>
+            <rect class="x1_bx" x="130" y="480" width="380" height="44"/><text class="x1_bt" x="320" y="507">Output word  yₜ</text>
+          </svg>
+          <div class="cap">Seq2Seq math flow — the encoder recurrence collapses into one context vector c that seeds the decoder recurrence.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 760 260" role="img" aria-label="Seq2Seq encoder decoder with single context vector">
+            <style>
+              .x2_enc{fill:#e0f2f1;stroke:#0ea5a4} .x2_dec{fill:#f1efff;stroke:#c4b5fd}
+              .x2_cv{fill:#fff7ed;stroke:#f59e0b}
+              .x2_wt{font-size:13px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x2_ws{font-size:11px;fill:#5b6577;text-anchor:middle}
+              .x2_ar{stroke:#94a3b8;stroke-width:2;fill:none;marker-end:url(#ah)}
+            </style>
+            <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <!-- encoder boxes -->
+            <text class="x2_ws" x="120" y="22">ENCODER (reads input)</text>
+            <rect class="x2_enc" x="40"  y="40" width="64" height="44" rx="8"/><text class="x2_wt" x="72"  y="67">h₁</text>
+            <rect class="x2_enc" x="128" y="40" width="64" height="44" rx="8"/><text class="x2_wt" x="160" y="67">h₂</text>
+            <rect class="x2_enc" x="216" y="40" width="64" height="44" rx="8"/><text class="x2_wt" x="248" y="67">h₃</text>
+            <line class="x2_ar" x1="104" y1="62" x2="126" y2="62"/>
+            <line class="x2_ar" x1="192" y1="62" x2="214" y2="62"/>
+            <text class="x2_ws" x="72"  y="102">"the"</text>
+            <text class="x2_ws" x="160" y="102">"cat"</text>
+            <text class="x2_ws" x="248" y="102">"sat"</text>
+            <!-- context vector -->
+            <rect class="x2_cv" x="320" y="40" width="110" height="44" rx="8"/>
+            <text class="x2_wt" x="375" y="61">context c</text>
+            <text class="x2_ws" x="375" y="77">= h₃  (one vector!)</text>
+            <line class="x2_ar" x1="280" y1="62" x2="318" y2="62"/>
+            <!-- decoder boxes -->
+            <text class="x2_ws" x="600" y="22">DECODER (writes output)</text>
+            <rect class="x2_dec" x="470" y="40" width="64" height="44" rx="8"/><text class="x2_wt" x="502" y="67">s₁</text>
+            <rect class="x2_dec" x="558" y="40" width="64" height="44" rx="8"/><text class="x2_wt" x="590" y="67">s₂</text>
+            <rect class="x2_dec" x="646" y="40" width="64" height="44" rx="8"/><text class="x2_wt" x="678" y="67">s₃</text>
+            <line class="x2_ar" x1="430" y1="62" x2="468" y2="62"/>
+            <line class="x2_ar" x1="534" y1="62" x2="556" y2="62"/>
+            <line class="x2_ar" x1="622" y1="62" x2="644" y2="62"/>
+            <text class="x2_ws" x="502" y="102">"le"</text>
+            <text class="x2_ws" x="590" y="102">"chat"</text>
+            <text class="x2_ws" x="678" y="102">"dort"</text>
+            <!-- bottleneck annotation -->
+            <rect x="300" y="150" width="150" height="70" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+            <text x="375" y="175" text-anchor="middle" font-size="22">⚠️</text>
+            <text x="375" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#dc2626">BOTTLENECK</text>
+            <text x="375" y="215" text-anchor="middle" font-size="11" fill="#5b6577">whole meaning → 1 vector</text>
+            <line class="x2_ar" x1="375" y1="86" x2="375" y2="148"/>
+          </svg>
+          <div class="cap">Everything the decoder ever knows about the source must fit inside the single context vector c.</div>
+        </div>
+
+        <span class="chip">Worked example (toy 2-dim hidden states)</span>
+        <p>Suppose after reading "the cat sat" the encoder's hidden states evolve and the final state is
+        <span class="mono">c = h₃ = [0.6, −0.2]</span>. The decoder is initialised with
+        <span class="mono">s₀ = c</span> and must produce "le chat dort" using <i>only</i> that one vector as
+        its memory of the source. If the sentence were 40 words long, <span class="mono">c</span> would still
+        be just 2 numbers (or 512 in practice) — the later words get crushed.</p>
+
+        <span class="chip">Why it fails — the problems</span>
+        <div class="proscons">
+          <div class="pc pc-con">
+            <h4>✗ Problems with one context vector</h4>
+            <ul>
+              <li><b>Fixed-length bottleneck:</b> long sentences overflow a fixed vector → information loss.</li>
+              <li><b>Recency bias:</b> the final state remembers the <i>end</i> of the sentence best; early
+                words fade.</li>
+              <li><b>No alignment:</b> when generating word 7, the decoder can't focus on the specific source
+                word that matters — it only has the blurred summary.</li>
+              <li><b>Sequential:</b> RNNs process one word at a time → slow, hard to parallelise.</li>
+            </ul>
+          </div>
+          <div class="pc pc-pro">
+            <h4>✓ The fix: Attention</h4>
+            <ul>
+              <li>Keep <i>all</i> encoder states h₁…hₙ, not just the last.</li>
+              <li>At each decode step, build a <b>fresh</b> context vector by <b>weighting</b> the encoder
+                states by relevance.</li>
+              <li>The decoder can now "look back" and <b>align</b> each output word to the right input words.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="summary-box">
+          <b>Part 1 summary —</b> Seq2Seq squeezes a whole sentence into one <b>context vector</b>, then
+          unrolls it into the output. The fixed-size vector is a hard <b>bottleneck</b> for long sequences and
+          gives no <b>alignment</b>. The fix — let the decoder read all encoder states and weight them — is
+          <b>attention</b>, next.
+        </div>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 2 — ATTENTION                                             ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-retr">
+        <h2>Part 2</h2>
+        <h1>Attention (Bahdanau &amp; Luong)</h1>
+        <p>The breakthrough: instead of one frozen context vector, build a new one at every step by paying
+        attention to the most relevant input words.</p>
+      </div>
+
+      <section class="part" id="c2" style="border-top:none">
+        <span class="badge b-retr">Chapter 2</span>
+        <h2 class="title">Attention Mechanism</h2>
+
+        <span class="chip">What</span>
+        <p><b>Attention</b> lets the decoder, at each output step <span class="mono">t</span>, look at
+        <i>every</i> encoder hidden state and compute a weighted average of them — where the weights say "how
+        relevant is each input word to what I'm generating right now". That weighted average is a
+        <b>per-step context vector</b> <span class="mono">c<sub>t</sub></span>.</p>
+
+        <span class="chip">Why</span>
+        <p>It dissolves the bottleneck. There is no longer one fixed summary; the decoder reconstructs a custom
+        summary for each word it writes. When translating "dort" it can focus on "sat"; when translating
+        "chat" it can focus on "cat" — <b>alignment</b> emerges automatically.</p>
+
+        <span class="chip">How — Bahdanau vs Luong</span>
+        <p>Both compute a relevance <b>score</b> between the decoder state and each encoder state, softmax the
+        scores into weights, and take the weighted sum. They differ in the score function:</p>
+        <div class="scroll-x">
+        <table class="tbl">
+          <thead><tr><th>Variant</th><th>Score function</th><th>Nickname</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Bahdanau (2014)</td><td class="mono">v<sup>⊤</sup> tanh(W<sub>1</sub>s<sub>t</sub> + W<sub>2</sub>h̄<sub>s</sub>)</td><td>Additive</td><td>A small neural net scores the pair; more parameters.</td></tr>
+            <tr><td>Luong · dot</td><td class="mono">s<sub>t</sub><sup>⊤</sup> h̄<sub>s</sub></td><td>Multiplicative</td><td>Cheap dot product; needs same dimension.</td></tr>
+            <tr><td>Luong · general</td><td class="mono">s<sub>t</sub><sup>⊤</sup> W h̄<sub>s</sub></td><td>Multiplicative</td><td>Learns a weight matrix W between the two spaces.</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="formula">
+          <div class="eq">score<sub>t,s</sub> = s<sub>t</sub><sup>⊤</sup> h̄<sub>s</sub>&nbsp;&nbsp;&nbsp;(Luong dot)</div>
+          <div class="eq" style="margin-top:6px">α<sub>t,s</sub> = softmax<sub>s</sub>( score<sub>t,s</sub> ) = e<sup>score<sub>t,s</sub></sup> / Σ<sub>s'</sub> e<sup>score<sub>t,s'</sub></sup></div>
+          <div class="eq" style="margin-top:6px">c<sub>t</sub> = Σ<sub>s</sub> α<sub>t,s</sub> · h̄<sub>s</sub>&nbsp;&nbsp;&nbsp;(weighted context)</div>
+          <div class="eq" style="margin-top:6px">s̃<sub>t</sub> = tanh( W<sub>c</sub> [ c<sub>t</sub> ; s<sub>t</sub> ] )&nbsp;→&nbsp;y<sub>t</sub> = softmax(W<sub>o</sub> s̃<sub>t</sub>)</div>
+          <div class="sig"><b>Significance of each piece:</b> the <b>dot product</b> is a similarity detector
+          (big when the decoder state and an encoder state point the same way). <b>Softmax</b> turns raw
+          similarities into a probability distribution that sums to 1. The <b>weighted sum</b> pulls together
+          the relevant input words into one context vector for this step.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 548" role="img" aria-label="Attention math flow">
+            <defs><marker id="s2a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x3_bx{rx:11;fill:#fff7ed;stroke:#f59e0b}.x3_bt{font-size:13px;font-weight:600;fill:#b45309;text-anchor:middle}
+              .x3_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x3_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s2a)}</style>
+            <rect class="x3_bx" x="100" y="24" width="440" height="44"/><text class="x3_bt" x="320" y="51">Decoder state sₜ  ·  Encoder states h̄₁…h̄ₙ</text>
+            <line class="x3_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x3_fm" x="320" y="100">scoreₜ,ₛ = sₜᵀ · h̄ₛ   (Luong dot)</text>
+            <rect class="x3_bx" x="130" y="138" width="380" height="44"/><text class="x3_bt" x="320" y="165">Scores  [ scoreₜ,₁ … scoreₜ,ₙ ]</text>
+            <line class="x3_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x3_fm" x="320" y="214">αₜ,ₛ = softmaxₛ( scoreₜ,ₛ )</text>
+            <rect class="x3_bx" x="130" y="252" width="380" height="44"/><text class="x3_bt" x="320" y="279">Attention weights  αₜ   (sum = 1)</text>
+            <line class="x3_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x3_fm" x="320" y="328">cₜ = Σₛ αₜ,ₛ · h̄ₛ   (weighted sum)</text>
+            <rect class="x3_bx" x="130" y="366" width="380" height="44"/><text class="x3_bt" x="320" y="393">Context vector  cₜ</text>
+            <line class="x3_ar" x1="320" y1="410" x2="320" y2="478"/>
+            <text class="x3_fm" x="320" y="442">s̃ₜ = tanh(W_c[cₜ;sₜ]) → softmax(W_o·s̃ₜ)</text>
+            <rect class="x3_bx" x="130" y="480" width="380" height="44"/><text class="x3_bt" x="320" y="507">Output word  yₜ</text>
+          </svg>
+          <div class="cap">Attention math flow — score every encoder state against the decoder state, softmax to weights, take the weighted sum to build a fresh context vector each step.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 720 290" role="img" aria-label="Attention weights over encoder states">
+            <style>
+              .x4_enc{fill:#e0f2f1;stroke:#0ea5a4}
+              .x4_wt{font-size:13px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x4_ws{font-size:11px;fill:#5b6577;text-anchor:middle}
+            </style>
+            <!-- encoder states -->
+            <rect class="x4_enc" x="40"  y="50" width="70" height="44" rx="8"/><text class="x4_wt" x="75"  y="77">h̄₁</text>
+            <rect class="x4_enc" x="40"  y="120" width="70" height="44" rx="8"/><text class="x4_wt" x="75"  y="147">h̄₂</text>
+            <rect class="x4_enc" x="40"  y="190" width="70" height="44" rx="8"/><text class="x4_wt" x="75"  y="217">h̄₃</text>
+            <text class="x4_ws" x="75" y="255">encoder states</text>
+            <!-- weights -->
+            <text class="x4_ws" x="300" y="34">attention weights αₜ</text>
+            <line x1="112" y1="72"  x2="430" y2="150" stroke="#f59e0b" stroke-width="7" opacity="0.9"/>
+            <line x1="112" y1="142" x2="430" y2="150" stroke="#f59e0b" stroke-width="3" opacity="0.5"/>
+            <line x1="112" y1="212" x2="430" y2="150" stroke="#f59e0b" stroke-width="3" opacity="0.5"/>
+            <text class="x4_ws" x="250" y="100" fill="#d97706">0.576</text>
+            <text class="x4_ws" x="250" y="150" fill="#d97706">0.212</text>
+            <text class="x4_ws" x="250" y="205" fill="#d97706">0.212</text>
+            <!-- context -->
+            <rect x="430" y="125" width="120" height="50" rx="10" fill="#fff7ed" stroke="#f59e0b"/>
+            <text class="x4_wt" x="490" y="148">context cₜ</text>
+            <text class="x4_ws" x="490" y="165">Σ αₜₛ · h̄ₛ</text>
+            <!-- decoder -->
+            <rect x="600" y="125" width="84" height="50" rx="10" fill="#f1efff" stroke="#c4b5fd"/>
+            <text class="x4_wt" x="642" y="148">decoder</text>
+            <text class="x4_ws" x="642" y="165">step t</text>
+            <line x1="550" y1="150" x2="598" y2="150" stroke="#94a3b8" stroke-width="2"/>
+            <text class="x4_ws" x="490" y="215">thicker line = higher weight</text>
+          </svg>
+          <div class="cap">At step t the decoder weights all encoder states; the heaviest weight (here h̄₁) dominates the context vector.</div>
+        </div>
+
+        <span class="chip">Worked example — Luong dot attention</span>
+        <p>Decoder state <span class="mono">s<sub>t</sub> = [1, 0, 1]</span>. Three encoder states:
+        <span class="mono">h̄₁=[1,0,1], h̄₂=[0,1,1], h̄₃=[1,1,0]</span>.</p>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Scores = dot product of sₜ with each h̄ₛ</div>
+            <div class="mono">s·h̄₁ = 1+0+1 = 2&nbsp;&nbsp;|&nbsp;&nbsp;s·h̄₂ = 0+0+1 = 1&nbsp;&nbsp;|&nbsp;&nbsp;s·h̄₃ = 1+0+0 = 1</div>
+            <div class="mono">scores = [2, 1, 1]</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Exponentiate</div>
+            <div class="mono">e² = 7.389,&nbsp; e¹ = 2.718,&nbsp; e¹ = 2.718&nbsp;&nbsp;→&nbsp;&nbsp;sum = 12.826</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">Softmax → weights αₜ</div>
+            <div class="mono">[7.389, 2.718, 2.718] / 12.826 = [<b>0.576</b>, <b>0.212</b>, <b>0.212</b>]</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">h̄₁ wins — it's most aligned with the decoder's current need.</div>
+          </div></div>
+          <div class="step"><div class="num">4</div><div class="stepbody">
+            <div class="lead">Context vector = weighted sum of h̄ₛ</div>
+            <div class="mono">cₜ = 0.576·[1,0,1] + 0.212·[0,1,1] + 0.212·[1,1,0]</div>
+            <div class="mono">= [0.576+0+0.212, 0+0.212+0.212, 0.576+0.212+0] = [<b>0.788, 0.424, 0.788</b>]</div>
+          </div></div>
+        </div>
+
+        <div class="proscons">
+          <div class="pc pc-pro">
+            <h4>✓ Pros</h4>
+            <ul>
+              <li>Removes the fixed-vector bottleneck — handles long sentences.</li>
+              <li>Learns <b>alignment</b> (interpretable heatmaps).</li>
+              <li>Big BLEU gains over vanilla seq2seq.</li>
+            </ul>
+          </div>
+          <div class="pc pc-con">
+            <h4>✗ Cons (still RNN-based)</h4>
+            <ul>
+              <li>Encoder/decoder are still <b>sequential</b> RNNs → no parallelism, slow on long inputs.</li>
+              <li>Attention only connects decoder→encoder, not <i>within</i> a sentence.</li>
+            </ul>
+          </div>
+        </div>
+
+        <a class="paper" href="https://arxiv.org/abs/1409.0473" target="_blank"><b>Bahdanau et al. 2014</b> — Neural MT by Jointly Learning to Align and Translate</a>
+        <a class="paper" href="https://arxiv.org/abs/1508.04025" target="_blank"><b>Luong et al. 2015</b> — Effective Approaches to Attention-based NMT</a>
+
+        <div class="summary-box">
+          <b>Part 2 summary —</b> Attention builds a <b>fresh context vector per step</b> as a softmax-weighted
+          sum of all encoder states. <b>Score → softmax → weighted sum.</b> It fixes the bottleneck and gives
+          alignment — but it's still bolted onto sequential RNNs. The next leap: drop the RNN entirely and let
+          a sentence attend to <i>itself</i>.
+        </div>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 3 — SELF-ATTENTION                                        ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-adv">
+        <h2>Part 3</h2>
+        <h1>Self-Attention: Static → Dynamic</h1>
+        <p>The heart of the Transformer. Let every word build its own context from every other word — turning
+        static embeddings into dynamic, context-aware ones.</p>
+      </div>
+
+      <section class="part" id="c3" style="border-top:none">
+        <span class="badge b-adv">Chapter 3</span>
+        <h2 class="title">Self-Attention &amp; Scaled Dot-Product</h2>
+
+        <span class="chip">The progression</span>
+        <div class="fig">
+          <svg viewBox="0 0 720 110" role="img" aria-label="Embedding evolution">
+            <style>.x5_ev{font-size:13px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x5_evs{font-size:10.5px;fill:#5b6577;text-anchor:middle}
+              .x5_arr{stroke:#ec4899;stroke-width:2;fill:none;marker-end:url(#p)}</style>
+            <defs><marker id="p" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ec4899"/></marker></defs>
+            <rect x="20"  y="34" width="140" height="44" rx="10" fill="#f1efff" stroke="#c4b5fd"/>
+            <text class="x5_ev" x="90" y="54">Word embedding</text><text class="x5_evs" x="90" y="70">one row of numbers</text>
+            <rect x="200" y="34" width="140" height="44" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+            <text class="x5_ev" x="270" y="54">Static</text><text class="x5_evs" x="270" y="70">same vector always</text>
+            <rect x="380" y="34" width="150" height="44" rx="10" fill="#fff7ed" stroke="#fed7aa"/>
+            <text class="x5_ev" x="455" y="54">Self-attention</text><text class="x5_evs" x="455" y="70">mix with neighbours</text>
+            <rect x="568" y="34" width="140" height="44" rx="10" fill="#ecfdf3" stroke="#bbf7d0"/>
+            <text class="x5_ev" x="638" y="50">Dynamic</text><text class="x5_evs" x="638" y="64">contextual</text><text class="x5_evs" x="638" y="76">embedding</text>
+            <line class="x5_arr" x1="160" y1="56" x2="198" y2="56"/>
+            <line class="x5_arr" x1="340" y1="56" x2="378" y2="56"/>
+            <line class="x5_arr" x1="530" y1="56" x2="566" y2="56"/>
+          </svg>
+        </div>
+
+        <span class="chip">The problem with static embeddings</span>
+        <p>A plain embedding gives a word <i>one</i> vector regardless of context. But meaning depends on
+        context:</p>
+        <div class="callout c-warn">
+          <div class="ico">🏦</div>
+          <div class="body">
+            <b>One word, two meanings — same vector</b>
+            <p>"I sat on the river <b>bank</b>." vs "I deposited cash at the <b>bank</b>." A static embedding
+            gives <i>bank</i> the <b>identical</b> vector in both — it cannot tell finance from geography. We
+            need a vector that <b>changes with its neighbours</b>. That is what self-attention produces.</p>
+          </div>
+        </div>
+
+        <span class="chip">What is self-attention</span>
+        <p>Every token looks at every other token in the <i>same</i> sentence and rebuilds itself as a weighted
+        blend of all tokens. "Self" because the queries and the keys/values all come from the <b>one</b>
+        sequence. Three learned roles per token, all derived from its embedding <span class="mono">x</span>:</p>
+        <ul class="clean">
+          <li><b>Query (Q)</b> — "what am I looking for?"</li>
+          <li><b>Key (K)</b> — "what do I offer / what am I about?"</li>
+          <li><b>Value (V)</b> — "the actual content I'll pass on if attended to."</li>
+        </ul>
+
+        <div class="formula">
+          <div class="eq">Q = X W<sub>Q</sub>&nbsp;&nbsp;&nbsp;K = X W<sub>K</sub>&nbsp;&nbsp;&nbsp;V = X W<sub>V</sub></div>
+          <div class="eq" style="margin-top:8px">Attention(Q,K,V) = softmax( Q K<sup>⊤</sup> / √d<sub>k</sub> ) V</div>
+          <div class="where">X = matrix of token embeddings (one row per token). W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> are learned projection matrices. d<sub>k</sub> = key dimension.</div>
+          <div class="sig"><b>Why each step:</b> <b>QK<sup>⊤</sup></b> = every query dotted with every key →
+          a similarity score for each token pair. <b>÷√d<sub>k</sub></b> keeps the scores from growing huge as
+          dimension grows (large dot products push softmax into tiny gradients). <b>softmax</b> → each row
+          becomes weights summing to 1. <b>× V</b> → each token's output is the weighted blend of all values.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 662" role="img" aria-label="Self-attention math flow">
+            <defs><marker id="s3a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x6_bx{rx:11;fill:#fce7f3;stroke:#ec4899}.x6_bt{font-size:13px;font-weight:600;fill:#be185d;text-anchor:middle}
+              .x6_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x6_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s3a)}</style>
+            <rect class="x6_bx" x="130" y="24" width="380" height="44"/><text class="x6_bt" x="320" y="51">Input embeddings  X   (n × d)</text>
+            <line class="x6_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x6_fm" x="320" y="100">Q = X·Wᵩ ,  K = X·Wₖ ,  V = X·Wᵥ</text>
+            <rect class="x6_bx" x="130" y="138" width="380" height="44"/><text class="x6_bt" x="320" y="165">Q , K , V</text>
+            <line class="x6_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x6_fm" x="320" y="214">S = Q·Kᵀ   (token–token similarity)</text>
+            <rect class="x6_bx" x="130" y="252" width="380" height="44"/><text class="x6_bt" x="320" y="279">Raw scores  S</text>
+            <line class="x6_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x6_fm" x="320" y="328">S ÷ √dₖ   (scale)</text>
+            <rect class="x6_bx" x="130" y="366" width="380" height="44"/><text class="x6_bt" x="320" y="393">Scaled scores</text>
+            <line class="x6_ar" x1="320" y1="410" x2="320" y2="478"/>
+            <text class="x6_fm" x="320" y="442">A = softmax(rows)</text>
+            <rect class="x6_bx" x="130" y="480" width="380" height="44"/><text class="x6_bt" x="320" y="507">Attention weights  A   (n × n)</text>
+            <line class="x6_ar" x1="320" y1="524" x2="320" y2="592"/>
+            <text class="x6_fm" x="320" y="556">Output = A·V</text>
+            <rect class="x6_bx" x="130" y="594" width="380" height="44"/><text class="x6_bt" x="320" y="621">Contextual output</text>
+          </svg>
+          <div class="cap">Self-attention math flow: <span class="mono">Attention(Q,K,V) = softmax(QKᵀ/√dₖ)·V</span> — project, score, scale, softmax, blend values.</div>
+        </div>
+
+        <div class="callout c-insight">
+          <div class="ico">📐</div>
+          <div class="body">
+            <b>Why divide by √d<sub>k</sub>?</b>
+            <p>If Q and K entries have variance 1, a dot product over d<sub>k</sub> dimensions has variance
+            d<sub>k</sub> — so scores scale like √d<sub>k</sub>. Large scores make softmax nearly one-hot,
+            where its gradient ≈ 0 and learning stalls. Dividing by √d<sub>k</sub> rescales variance back to
+            ~1, keeping gradients healthy. For the paper's d<sub>k</sub>=64, that's ÷8.</p>
+          </div>
+        </div>
+
+        <h3>Worked example — full self-attention on 3 tokens</h3>
+        <p>Three tokens with 4-dim embeddings (rows of X), and tiny projections to d<sub>k</sub>=d<sub>v</sub>=2.
+        We compute the new vector for every token.</p>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Inputs</div>
+            <div class="mono">X = [[1,0,1,0],&nbsp; [0,1,0,1],&nbsp; [1,1,0,0]]&nbsp;&nbsp;(t₁, t₂, t₃)</div>
+            <div class="mono">After projecting by W<sub>Q</sub>,W<sub>K</sub>,W<sub>V</sub>:</div>
+            <div class="mono">Q = [[2,0],[0,2],[1,1]]&nbsp;&nbsp;K = [[0,2],[2,0],[1,1]]&nbsp;&nbsp;V = [[2,1],[1,1],[1,1]]</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Scores = Q K<sup>⊤</sup> (every token vs every token)</div>
+            <div class="mono">Q K<sup>⊤</sup> = [[0, 4, 2],&nbsp; [4, 0, 2],&nbsp; [2, 2, 2]]</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">Row 1 = how much t₁ attends to t₁,t₂,t₃. t₁·k₂ = 4 is the biggest → t₁ is most interested in t₂.</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">Scale by √d<sub>k</sub> = √2 ≈ 1.414</div>
+            <div class="mono">[[0, 2.828, 1.414],&nbsp; [2.828, 0, 1.414],&nbsp; [1.414, 1.414, 1.414]]</div>
+          </div></div>
+          <div class="step"><div class="num">4</div><div class="stepbody">
+            <div class="lead">Softmax each row → attention weights A</div>
+            <div class="mono">row1 = [0.045, <b>0.768</b>, 0.187]</div>
+            <div class="mono">row2 = [<b>0.768</b>, 0.045, 0.187]</div>
+            <div class="mono">row3 = [0.333, 0.333, 0.333]</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">t₁ mostly attends to t₂; t₂ mostly to t₁; t₃ spreads evenly.</div>
+          </div></div>
+          <div class="step"><div class="num">5</div><div class="stepbody">
+            <div class="lead">Output = A · V (new contextual vectors)</div>
+            <div class="mono">t₁' = [1.045, 1.0]&nbsp;&nbsp; t₂' = [1.768, 1.0]&nbsp;&nbsp; t₃' = [1.333, 1.0]</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">Each token's output now blends information from the tokens it attended to — a <b>dynamic, contextual</b> embedding.</div>
+          </div></div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 560 250" role="img" aria-label="Attention weight matrix heatmap">
+            <style>.x7_hd{font-size:12px;fill:#5b6577;text-anchor:middle}
+              .x7_vv{font-size:12px;font-family:monospace;fill:#1c2330;text-anchor:middle}
+              .x7_rl{font-size:12px;fill:#5b6577;text-anchor:end}</style>
+            <text x="280" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="#1c2330">Attention weight matrix A (rows = queries)</text>
+            <text class="x7_hd" x="180" y="58">to t₁</text><text class="x7_hd" x="290" y="58">to t₂</text><text class="x7_hd" x="400" y="58">to t₃</text>
+            <!-- row1 -->
+            <text class="x7_rl" x="120" y="92">t₁ →</text>
+            <rect x="135" y="72" width="90" height="34" rx="4" fill="#fde2ef"/><text class="x7_vv" x="180" y="94">0.045</text>
+            <rect x="245" y="72" width="90" height="34" rx="4" fill="#ec4899"/><text class="x7_vv" x="290" y="94" fill="#fff">0.768</text>
+            <rect x="355" y="72" width="90" height="34" rx="4" fill="#f7a8cf"/><text class="x7_vv" x="400" y="94">0.187</text>
+            <!-- row2 -->
+            <text class="x7_rl" x="120" y="134">t₂ →</text>
+            <rect x="135" y="114" width="90" height="34" rx="4" fill="#ec4899"/><text class="x7_vv" x="180" y="136" fill="#fff">0.768</text>
+            <rect x="245" y="114" width="90" height="34" rx="4" fill="#fde2ef"/><text class="x7_vv" x="290" y="136">0.045</text>
+            <rect x="355" y="114" width="90" height="34" rx="4" fill="#f7a8cf"/><text class="x7_vv" x="400" y="136">0.187</text>
+            <!-- row3 -->
+            <text class="x7_rl" x="120" y="176">t₃ →</text>
+            <rect x="135" y="156" width="90" height="34" rx="4" fill="#f4bcd8"/><text class="x7_vv" x="180" y="178">0.333</text>
+            <rect x="245" y="156" width="90" height="34" rx="4" fill="#f4bcd8"/><text class="x7_vv" x="290" y="178">0.333</text>
+            <rect x="355" y="156" width="90" height="34" rx="4" fill="#f4bcd8"/><text class="x7_vv" x="400" y="178">0.333</text>
+            <text class="x7_hd" x="280" y="214">darker = more attention · every row sums to 1.0</text>
+          </svg>
+          <div class="cap">The softmaxed score matrix: each row tells one token how to blend the others into its new representation.</div>
+        </div>
+
+        <h3>Attention vs Self-Attention</h3>
+        <div class="scroll-x">
+        <table class="tbl">
+          <thead><tr><th>Aspect</th><th>(Cross) Attention — Part 2</th><th>Self-Attention</th></tr></thead>
+          <tbody>
+            <tr><td>Query from</td><td>Decoder</td><td>The same sequence</td></tr>
+            <tr><td>Keys/Values from</td><td>Encoder (a different sequence)</td><td>The same sequence</td></tr>
+            <tr><td>Purpose</td><td>Align output words to input words</td><td>Enrich each word with its own sentence's context</td></tr>
+            <tr><td>Result</td><td>Per-step decoder context vector</td><td>Dynamic contextual embedding per token</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="proscons">
+          <div class="pc pc-pro">
+            <h4>✓ Pros</h4>
+            <ul>
+              <li><b>Fully parallel</b> — all tokens processed at once (no recurrence).</li>
+              <li>Constant path length between any two tokens → captures <b>long-range</b> dependencies.</li>
+              <li>Produces context-aware embeddings ("bank" finally disambiguates).</li>
+            </ul>
+          </div>
+          <div class="pc pc-con">
+            <h4>✗ Cons</h4>
+            <ul>
+              <li><b>O(n²)</b> cost — every token attends to every token (quadratic in sequence length).</li>
+              <li>No inherent notion of <b>word order</b> (fixed by positional encoding, Part 5).</li>
+              <li>A single attention captures only <b>one</b> kind of relationship → next problem.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="callout c-warn">
+          <div class="ico">🔭</div>
+          <div class="body">
+            <b>The single-perspective problem</b>
+            <p>Take <i>"The man saw the astronomer with a telescope."</i> There are <b>two</b> valid readings:
+            (a) the man <i>used</i> a telescope to see, so "with a telescope" attaches to "saw"; (b) the
+            astronomer <i>has</i> a telescope, so it attaches to "astronomer". A single self-attention produces
+            <b>one</b> weight distribution — it can commit to only one of these relationships at a time. We
+            want the model to capture <b>both</b> perspectives simultaneously. The fix: run several attentions
+            in parallel → <b>multi-head attention</b>.</p>
+          </div>
+        </div>
+
+        <a class="paper" href="https://arxiv.org/abs/1706.03762" target="_blank"><b>Vaswani et al. 2017</b> — Attention Is All You Need (§3.2.1 Scaled Dot-Product Attention)</a>
+
+        <div class="summary-box">
+          <b>Part 3 summary —</b> Self-attention turns static embeddings into <b>dynamic contextual</b> ones via
+          <b>softmax(QKᵀ/√d<sub>k</sub>)V</b>. Q/K/V = ask/offer/content; the scaled dot product scores
+          relevance, softmax normalises, the weighted sum of values rebuilds each token. One head sees one
+          relationship — to capture multiple perspectives at once, we go multi-head.
+        </div>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 4 — MULTI-HEAD ATTENTION                                  ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-embed">
+        <h2>Part 4</h2>
+        <h1>Multi-Head Attention</h1>
+        <p>Run several self-attentions in parallel, each in its own subspace, so the model captures several
+        relationships — several "perspectives" — at the same time.</p>
+      </div>
+
+      <section class="part" id="c4" style="border-top:none">
+        <span class="badge b-embed">Chapter 4</span>
+        <h2 class="title">Multi-Head Attention</h2>
+
+        <span class="chip">What</span>
+        <p><b>Multi-head attention</b> runs <span class="mono">h</span> independent attention "heads" in
+        parallel. Each head has its <i>own</i> W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>, so each projects
+        the tokens into a different subspace and learns to focus on a different kind of relationship. Their
+        outputs are concatenated and projected back down.</p>
+
+        <span class="chip">Why</span>
+        <p>One head = one weight distribution = one perspective (the telescope problem). With h heads, head 1
+        can attach "telescope" to "saw" while head 2 attaches it to "astronomer"; one head can track syntax,
+        another coreference, another local phrases. The model no longer has to choose a single relationship.</p>
+
+        <div class="formula">
+          <div class="eq">head<sub>i</sub> = Attention( X W<sub>Q</sub><sup>(i)</sup>, X W<sub>K</sub><sup>(i)</sup>, X W<sub>V</sub><sup>(i)</sup> )</div>
+          <div class="eq" style="margin-top:8px">MultiHead(X) = Concat( head<sub>1</sub>, …, head<sub>h</sub> ) W<sub>O</sub></div>
+          <div class="where">Paper config: h = 8 heads, d<sub>model</sub> = 512, so each head uses d<sub>k</sub> = d<sub>v</sub> = 512 / 8 = 64. W<sub>O</sub> mixes the heads back to d<sub>model</sub>.</div>
+          <div class="sig"><b>Significance:</b> total compute ≈ same as one full-size attention (because each head
+          is 1/h as wide), but you get h different views for free, then <b>W<sub>O</sub></b> learns how to
+          combine them.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 434" role="img" aria-label="Multi-head attention math flow">
+            <defs><marker id="s4a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x8_bx{rx:11;fill:#f1efff;stroke:#7c3aed}.x8_bt{font-size:13px;font-weight:600;fill:#6d28d9;text-anchor:middle}
+              .x8_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x8_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s4a)}</style>
+            <rect class="x8_bx" x="130" y="24" width="380" height="44"/><text class="x8_bt" x="320" y="51">Input  X</text>
+            <line class="x8_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x8_fm" x="320" y="92">for i = 1…h  (=8):</text>
+            <text class="x8_fm" x="320" y="108">headᵢ = Attention(X·Wᵩⁱ, X·Wₖⁱ, X·Wᵥⁱ)</text>
+            <rect class="x8_bx" x="90" y="138" width="460" height="44"/><text class="x8_bt" x="320" y="165">head₁ , head₂ , … , head_h   (8 parallel subspaces)</text>
+            <line class="x8_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x8_fm" x="320" y="214">Concat(head₁ … head_h)   → (n × h·dᵥ = n×512)</text>
+            <rect class="x8_bx" x="130" y="252" width="380" height="44"/><text class="x8_bt" x="320" y="279">Concatenated heads</text>
+            <line class="x8_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x8_fm" x="320" y="328">· Wₒ   (512 × 512, mix subspaces)</text>
+            <rect class="x8_bx" x="130" y="366" width="380" height="44"/><text class="x8_bt" x="320" y="393">MultiHead(X) output</text>
+          </svg>
+          <div class="cap">Multi-head math flow: run h attentions in parallel subspaces, concatenate, project with W<sub>O</sub>.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 720 300" role="img" aria-label="Multi-head attention split concat project">
+            <style>
+              .x9_bx{rx:10} .x9_t{font-size:12px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x9_s{font-size:10.5px;fill:#5b6577;text-anchor:middle}
+              .x9_ar{stroke:#94a3b8;stroke-width:2;fill:none;marker-end:url(#mh)}
+            </style>
+            <defs><marker id="mh" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <!-- input -->
+            <rect class="x9_bx" x="300" y="20" width="120" height="40" fill="#eef2ff" stroke="#c7d2fe"/>
+            <text class="x9_t" x="360" y="45">Input X</text>
+            <!-- split into heads -->
+            <rect class="x9_bx" x="40"  y="100" width="150" height="56" fill="#f1efff" stroke="#c4b5fd"/>
+            <text class="x9_t" x="115" y="124">Head 1</text><text class="x9_s" x="115" y="142">Wq¹ Wk¹ Wv¹ → attn</text>
+            <rect class="x9_bx" x="210" y="100" width="150" height="56" fill="#fff7ed" stroke="#fed7aa"/>
+            <text class="x9_t" x="285" y="124">Head 2</text><text class="x9_s" x="285" y="142">Wq² Wk² Wv² → attn</text>
+            <rect class="x9_bx" x="380" y="100" width="60" height="56" fill="#ecfdf3" stroke="#bbf7d0"/>
+            <text class="x9_t" x="410" y="132">…</text>
+            <rect class="x9_bx" x="460" y="100" width="150" height="56" fill="#fde2ef" stroke="#f9a8d4"/>
+            <text class="x9_t" x="535" y="124">Head 8</text><text class="x9_s" x="535" y="142">Wq⁸ Wk⁸ Wv⁸ → attn</text>
+            <line class="x9_ar" x1="320" y1="60" x2="130" y2="98"/>
+            <line class="x9_ar" x1="345" y1="60" x2="290" y2="98"/>
+            <line class="x9_ar" x1="375" y1="60" x2="520" y2="98"/>
+            <text class="x9_s" x="360" y="84">each head = its own subspace (d=64)</text>
+            <!-- concat -->
+            <rect class="x9_bx" x="190" y="196" width="340" height="40" fill="#e0e7ff" stroke="#a5b4fc"/>
+            <text class="x9_t" x="360" y="221">Concat(head₁ … head₈)  →  d = 512</text>
+            <line class="x9_ar" x1="115" y1="156" x2="250" y2="194"/>
+            <line class="x9_ar" x1="285" y1="156" x2="320" y2="194"/>
+            <line class="x9_ar" x1="535" y1="156" x2="450" y2="194"/>
+            <!-- project -->
+            <rect class="x9_bx" x="280" y="256" width="160" height="36" fill="#6d5dfc" stroke="#5b4bd6"/>
+            <text class="x9_t" x="360" y="279" fill="#fff">× Wₒ  → output</text>
+            <line class="x9_ar" x1="360" y1="236" x2="360" y2="254"/>
+          </svg>
+          <div class="cap">Split into h heads (each a smaller attention) → concatenate → project with W<sub>O</sub> back to d<sub>model</sub>.</div>
+        </div>
+
+        <span class="chip">Worked example — two heads, the telescope sentence</span>
+        <p>Run two heads over <i>"…saw the astronomer with a telescope"</i>. Each head produces its own
+        attention row for the word <b>telescope</b> (where does it attach?):</p>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Head 1 — "instrument" subspace</div>
+            <div class="mono">telescope attends to →  saw: <b>0.71</b>, astronomer: 0.12, with: 0.17</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">Reading (a): the telescope was the tool used to <i>see</i>.</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Head 2 — "possession" subspace</div>
+            <div class="mono">telescope attends to →  astronomer: <b>0.68</b>, saw: 0.14, with: 0.18</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">Reading (b): the telescope <i>belongs to</i> the astronomer.</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">Concatenate + W<sub>O</sub></div>
+            <div class="mono">final(telescope) = Wₒ · [ head1 ; head2 ]</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">The token's representation now encodes <b>both</b> attachments at once — the single-perspective problem is solved.</div>
+          </div></div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 700 170" role="img" aria-label="Two heads capture two perspectives of telescope">
+            <style>.x10_w{font-size:12px;fill:#1c2330;text-anchor:middle;font-weight:600}
+              .x10_h1{stroke:#6d5dfc} .x10_h2{stroke:#ec4899}
+              .x10_lg{font-size:11px;text-anchor:middle}</style>
+            <!-- words row -->
+            <text class="x10_w" x="120" y="120">saw</text>
+            <text class="x10_w" x="300" y="120">astronomer</text>
+            <text class="x10_w" x="480" y="120">telescope</text>
+            <circle cx="120" cy="100" r="5" fill="#1c2330"/>
+            <circle cx="300" cy="100" r="5" fill="#1c2330"/>
+            <circle cx="480" cy="100" r="5" fill="#1c2330"/>
+            <!-- head1 arc telescope->saw -->
+            <path d="M480,100 Q300,20 120,100" class="x10_h1" stroke-width="6" fill="none" opacity="0.85"/>
+            <!-- head2 arc telescope->astronomer -->
+            <path d="M480,100 Q390,40 300,100" class="x10_h2" stroke-width="6" fill="none" opacity="0.85"/>
+            <text class="x10_lg" x="250" y="30" fill="#6d5dfc">Head 1: telescope → saw (instrument)</text>
+            <text class="x10_lg" x="470" y="48" fill="#ec4899">Head 2: telescope → astronomer (owner)</text>
+          </svg>
+          <div class="cap">Two heads, two simultaneous attachments — the mixed perspective a single head could not represent.</div>
+        </div>
+
+        <div class="proscons">
+          <div class="pc pc-pro">
+            <h4>✓ Pros</h4>
+            <ul>
+              <li>Captures multiple relationship types / perspectives simultaneously.</li>
+              <li>Same total cost as one wide attention (heads are thinner).</li>
+              <li>More stable, richer representations.</li>
+            </ul>
+          </div>
+          <div class="pc pc-con">
+            <h4>✗ Cons</h4>
+            <ul>
+              <li>Choosing h is a hyperparameter; too many tiny heads can underperform.</li>
+              <li>Some heads end up redundant and can be pruned.</li>
+              <li>Still O(n²) per head in sequence length.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="summary-box">
+          <b>Part 4 summary —</b> Multi-head = <b>h parallel attentions</b> in different subspaces, concatenated
+          and projected by W<sub>O</sub>. It lets one layer hold several relationships at once (the two
+          telescope readings). Paper: h=8, d<sub>k</sub>=64. Next gap: attention is order-blind — we must
+          inject position.
+        </div>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 5 — POSITIONAL ENCODING                                   ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-index">
+        <h2>Part 5</h2>
+        <h1>Positional Encoding</h1>
+        <p>Attention processes all tokens at once, losing word order. We add a smooth, periodic signal so the
+        model can sense position.</p>
+      </div>
+
+      <section class="part" id="c5" style="border-top:none">
+        <span class="badge b-index">Chapter 5</span>
+        <h2 class="title">Sinusoidal Positional Encoding</h2>
+
+        <span class="chip">Why it's needed</span>
+        <p>Self-attention is a <b>set</b> operation: shuffle the tokens and the math gives the same answer
+        (the weighted sum doesn't care about order). But "dog bites man" ≠ "man bites dog". Because the
+        Transformer dropped recurrence to gain parallelism, it <b>lost the natural sense of sequence</b> —
+        we must add order information back explicitly.</p>
+
+        <span class="chip">What it should be</span>
+        <p>We add a position vector <span class="mono">PE(pos)</span> to each token embedding. A good positional
+        signal should be:</p>
+        <ul class="clean">
+          <li><b>Bounded</b> — values stay in a fixed range (so they don't blow up for long sequences).</li>
+          <li><b>Periodic</b> — repeating waves let the model compare relative offsets.</li>
+          <li><b>Continuous &amp; deterministic</b> — smooth, and defined for any position (even longer than
+            those seen in training).</li>
+        </ul>
+        <p>Functions that are bounded + periodic + continuous → <b>trigonometric</b> (sine &amp; cosine). That
+        is exactly what the paper uses.</p>
+
+        <div class="formula">
+          <div class="eq">PE(pos, 2i)&nbsp;&nbsp;= sin( pos / 10000<sup>2i/d</sup> )</div>
+          <div class="eq" style="margin-top:6px">PE(pos, 2i+1) = cos( pos / 10000<sup>2i/d</sup> )</div>
+          <div class="where">pos = position in the sentence (0,1,2,…). i = dimension index pair. d = d<sub>model</sub>. Even dims use sin, odd dims use cos.</div>
+          <div class="sig"><b>Significance:</b> each dimension is a sine wave of a different <b>wavelength</b>
+          (short waves for low dims, very long waves for high dims). Together they give every position a
+          unique fingerprint, and because sin/cos have angle-addition identities, the model can learn to
+          attend by <b>relative</b> position (offset k) with a fixed linear map.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 434" role="img" aria-label="Positional encoding math flow">
+            <defs><marker id="s5a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x11_bx{rx:11;fill:#e0f2f1;stroke:#0ea5a4}.x11_bt{font-size:13px;font-weight:600;fill:#0f766e;text-anchor:middle}
+              .x11_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x11_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s5a)}</style>
+            <rect class="x11_bx" x="130" y="24" width="380" height="44"/><text class="x11_bt" x="320" y="51">position pos , dim index i</text>
+            <line class="x11_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x11_fm" x="320" y="100">even: PE(pos,2i) = sin( pos / 10000^(2i/d) )</text>
+            <rect class="x11_bx" x="130" y="138" width="380" height="44"/><text class="x11_bt" x="320" y="165">sin components (even dims)</text>
+            <line class="x11_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x11_fm" x="320" y="214">odd: PE(pos,2i+1) = cos( pos / 10000^(2i/d) )</text>
+            <rect class="x11_bx" x="90" y="252" width="460" height="44"/><text class="x11_bt" x="320" y="273">PE(pos) vector</text><text class="x11_fm" x="320" y="289" style="fill:#0f766e">pos=1,d=4 → [.8415, .5403, .0100, 1.0000]</text>
+            <line class="x11_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x11_fm" x="320" y="328">input = Embedding(token) + PE(pos)</text>
+            <rect class="x11_bx" x="130" y="366" width="380" height="44"/><text class="x11_bt" x="320" y="393">Position-aware input</text>
+          </svg>
+          <div class="cap">Positional-encoding math flow: build sin/cos waves per dimension, then add the PE vector to the token embedding.</div>
+        </div>
+
+        <span class="chip">How it's used in the paper</span>
+        <p>The PE vector is simply <b>added</b> to the token embedding (same dimension d<sub>model</sub>):
+        <span class="mono">input = embedding(token) + PE(pos)</span>. No extra parameters. Each token now
+        carries both <i>what</i> it is and <i>where</i> it is.</p>
+
+        <span class="chip">Worked example — d = 4</span>
+        <p>With d=4 there are two wave-pairs (i=0 and i=1). The divisors are
+        <span class="mono">10000<sup>0/4</sup>=1</span> and <span class="mono">10000<sup>2/4</sup>=100</span>.
+        Compute PE for positions 0, 1, 2:</p>
+        <div class="mathbox">
+          <div class="step"><div class="num">0</div><div class="stepbody">
+            <div class="lead">pos = 0</div>
+            <div class="mono">[ sin(0/1), cos(0/1), sin(0/100), cos(0/100) ] = [0, 1, 0, 1]</div>
+          </div></div>
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">pos = 1</div>
+            <div class="mono">[ sin(1), cos(1), sin(0.01), cos(0.01) ] = [0.8415, 0.5403, 0.0100, 1.0000]</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">pos = 2</div>
+            <div class="mono">[ sin(2), cos(2), sin(0.02), cos(0.02) ] = [0.9093, −0.4161, 0.0200, 0.9998]</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">Dim 0–1 (short wavelength) change fast between positions; dim 2–3 (long wavelength) barely move → coarse + fine position info together.</div>
+          </div></div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 680 250" role="img" aria-label="Positional encoding heatmap and waves">
+            <style>.x12_ax{stroke:#94a3b8;stroke-width:1} .x12_gl{font-size:11px;fill:#5b6577}
+              .x12_tt{font-size:12px;font-weight:700;fill:#1c2330}</style>
+            <text class="x12_tt" x="40" y="24">Two sine/cos waves of different wavelength (dim 0 fast, dim 2 slow)</text>
+            <!-- axes -->
+            <line class="x12_ax" x1="50" y1="150" x2="640" y2="150"/>
+            <line class="x12_ax" x1="50" y1="60" x2="50" y2="220"/>
+            <text class="x12_gl" x="38" y="64" text-anchor="end">+1</text>
+            <text class="x12_gl" x="38" y="154" text-anchor="end">0</text>
+            <text class="x12_gl" x="38" y="224" text-anchor="end">−1</text>
+            <!-- fast wave dim0 sin -->
+            <path fill="none" stroke="#0ea5a4" stroke-width="2.5"
+              d="M50,150 Q90,60 130,150 Q170,240 210,150 Q250,60 290,150 Q330,240 370,150 Q410,60 450,150 Q490,240 530,150 Q570,60 610,150"/>
+            <!-- slow wave dim2 sin -->
+            <path fill="none" stroke="#f59e0b" stroke-width="2.5"
+              d="M50,150 Q200,95 350,120 Q500,140 640,150"/>
+            <text class="x12_gl" x="618" y="120" fill="#0ea5a4">dim 0 (short λ)</text>
+            <text class="x12_gl" x="560" y="138" fill="#d97706">dim 2 (long λ)</text>
+            <text class="x12_gl" x="345" y="240" text-anchor="middle">position →</text>
+          </svg>
+          <div class="cap">Different dimensions oscillate at different rates; their combination uniquely fingerprints every position.</div>
+        </div>
+
+        <div class="callout c-note">
+          <div class="ico">🧭</div>
+          <div class="body">
+            <b>Sinusoidal vs learned positional embeddings</b>
+            <p>The paper tested both and found near-identical quality, but chose <b>sinusoidal</b> because it
+            needs no parameters and can <b>extrapolate</b> to sequences longer than any seen in training. Many
+            modern models instead use <i>learned</i> or <i>rotary (RoPE)</i> positions — same goal, different
+            wave.</p>
+          </div>
+        </div>
+
+        <a class="paper" href="https://arxiv.org/abs/1706.03762" target="_blank"><b>Vaswani et al. 2017</b> — §3.5 Positional Encoding</a>
+
+        <div class="summary-box">
+          <b>Part 5 summary —</b> Parallel attention is order-blind, so we <b>add</b> a sinusoidal position
+          vector to each embedding. Sin/cos are bounded, periodic, continuous, and let the model reason about
+          <b>relative</b> positions. Different dims = different wavelengths = unique position fingerprint.
+        </div>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 6 — NORMALIZATION                                         ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-retr">
+        <h2>Part 6</h2>
+        <h1>Normalization</h1>
+        <p>Keeping activations well-scaled so deep stacks train fast and stably. Why Transformers use Layer
+        Norm, not Batch Norm.</p>
+      </div>
+
+      <section class="part" id="c6" style="border-top:none">
+        <span class="badge b-retr">Chapter 6</span>
+        <h2 class="title">Batch Norm vs Layer Norm</h2>
+
+        <span class="chip">Why normalize — the benefits</span>
+        <ul class="clean">
+          <li><b>Stable training:</b> keeps activations at mean≈0, variance≈1 → gradients don't explode/vanish.</li>
+          <li><b>Faster convergence:</b> allows higher learning rates.</li>
+          <li><b>Smoother loss landscape:</b> reduces sensitivity to initialization and "internal covariate shift".</li>
+          <li><b>Mild regularization:</b> a small noise/averaging effect.</li>
+        </ul>
+        <p>The standard recipe is: subtract the mean, divide by the standard deviation, then rescale with two
+        <i>learned</i> parameters γ (scale) and β (shift) so the layer can undo normalization if needed.</p>
+
+        <div class="formula">
+          <div class="eq">x̂ = (x − μ) / √(σ² + ε)&nbsp;&nbsp;&nbsp;then&nbsp;&nbsp;&nbsp;y = γ · x̂ + β</div>
+          <div class="where">The only difference between BatchNorm and LayerNorm is <b>which axis</b> μ and σ² are computed over.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 434" role="img" aria-label="Normalization math flow">
+            <defs><marker id="s6a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x13_bx{rx:11;fill:#fff7ed;stroke:#f59e0b}.x13_bt{font-size:13px;font-weight:600;fill:#b45309;text-anchor:middle}
+              .x13_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x13_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s6a)}</style>
+            <rect class="x13_bx" x="130" y="24" width="380" height="44"/><text class="x13_bt" x="320" y="51">Activation vector  x = (x₁ … x_n)</text>
+            <line class="x13_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x13_fm" x="320" y="100">μ = (1/n)Σ xᵢ ,   σ² = (1/n)Σ (xᵢ − μ)²</text>
+            <rect class="x13_bx" x="130" y="138" width="380" height="44"/><text class="x13_bt" x="320" y="165">Mean μ , Variance σ²</text>
+            <line class="x13_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x13_fm" x="320" y="214">x̂ᵢ = (xᵢ − μ) / √(σ² + ε)</text>
+            <rect class="x13_bx" x="130" y="252" width="380" height="44"/><text class="x13_bt" x="320" y="279">Normalized  x̂   (mean 0, var 1)</text>
+            <line class="x13_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x13_fm" x="320" y="328">yᵢ = γ · x̂ᵢ + β   (learned scale, shift)</text>
+            <rect class="x13_bx" x="130" y="366" width="380" height="44"/><text class="x13_bt" x="320" y="393">Output  y</text>
+          </svg>
+          <div class="cap">Normalization math flow. <b>LayerNorm</b> takes μ,σ² over a token's features; <b>BatchNorm</b> over the batch per feature — same formula, different axis.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 680 250" role="img" aria-label="Batch norm vs layer norm axis">
+            <style>.x14_cell{stroke:#cbd5e1;fill:#fff} .x14_tt{font-size:13px;font-weight:700;fill:#1c2330;text-anchor:middle}
+              .x14_gl{font-size:11px;fill:#5b6577;text-anchor:middle} .x14_cv{font-size:12px;font-family:monospace;fill:#1c2330;text-anchor:middle}</style>
+            <!-- BN grid -->
+            <text class="x14_tt" x="160" y="28">Batch Norm — normalize down each column (feature)</text>
+            <!-- columns highlighted -->
+            <rect x="60" y="44" width="60" height="120" fill="#fff7ed" stroke="#f59e0b"/>
+            <g>
+              <rect class="x14_cell" x="60"  y="44" width="60" height="40"/><text class="x14_cv" x="90"  y="69">1</text>
+              <rect class="x14_cell" x="120" y="44" width="60" height="40"/><text class="x14_cv" x="150" y="69">2</text>
+              <rect class="x14_cell" x="180" y="44" width="60" height="40"/><text class="x14_cv" x="210" y="69">3</text>
+              <rect class="x14_cell" x="60"  y="84" width="60" height="40"/><text class="x14_cv" x="90"  y="109">4</text>
+              <rect class="x14_cell" x="120" y="84" width="60" height="40"/><text class="x14_cv" x="150" y="109">5</text>
+              <rect class="x14_cell" x="180" y="84" width="60" height="40"/><text class="x14_cv" x="210" y="109">6</text>
+            </g>
+            <text class="x14_gl" x="150" y="150">↑ stats over the batch (rows)</text>
+            <text class="x14_gl" x="150" y="182">2 samples × 3 features</text>
+            <!-- LN grid -->
+            <text class="x14_tt" x="510" y="28">Layer Norm — normalize across each row (token)</text>
+            <rect x="410" y="44" width="180" height="40" fill="#f1efff" stroke="#6d5dfc"/>
+            <g>
+              <rect class="x14_cell" x="410" y="44" width="60" height="40"/><text class="x14_cv" x="440" y="69">1</text>
+              <rect class="x14_cell" x="470" y="44" width="60" height="40"/><text class="x14_cv" x="500" y="69">2</text>
+              <rect class="x14_cell" x="530" y="44" width="60" height="40"/><text class="x14_cv" x="560" y="69">3</text>
+              <rect class="x14_cell" x="410" y="84" width="60" height="40"/><text class="x14_cv" x="440" y="109">4</text>
+              <rect class="x14_cell" x="470" y="84" width="60" height="40"/><text class="x14_cv" x="500" y="109">5</text>
+              <rect class="x14_cell" x="530" y="84" width="60" height="40"/><text class="x14_cv" x="560" y="109">6</text>
+            </g>
+            <text class="x14_gl" x="500" y="150">→ stats over the features of one token</text>
+            <text class="x14_gl" x="500" y="182">independent of batch size</text>
+            <text class="x14_gl" x="340" y="222" text-anchor="middle">Transformers use Layer Norm: each token is normalized on its own → works with any batch size &amp; variable sequence length.</text>
+          </svg>
+          <div class="cap">Same matrix, different normalization axis. BatchNorm couples samples in a batch; LayerNorm treats each token independently.</div>
+        </div>
+
+        <h3>Worked example — same 2×3 matrix, both ways</h3>
+        <p>Activations (2 samples/tokens × 3 features): <span class="mono">[[1, 2, 3], [4, 5, 6]]</span>
+        (using ε≈0 for clarity).</p>
+        <div class="two-col">
+          <div class="mathbox">
+            <div class="step"><div class="num">B</div><div class="stepbody">
+              <div class="lead">Batch Norm (per column)</div>
+              <div class="mono">col means = [2.5, 3.5, 4.5]</div>
+              <div class="mono">col var = 2.25 → std = 1.5</div>
+              <div class="mono">col1: (1−2.5)/1.5=−1, (4−2.5)/1.5=+1</div>
+              <div class="mono">→ [[−1, −1, −1],<br>&nbsp;&nbsp;&nbsp;[+1, +1, +1]]</div>
+              <div class="sub" style="font-size:13px;color:var(--muted)">Each <b>feature</b> now has mean 0 across the batch.</div>
+            </div></div>
+          </div>
+          <div class="mathbox">
+            <div class="step"><div class="num">L</div><div class="stepbody">
+              <div class="lead">Layer Norm (per row)</div>
+              <div class="mono">row1 mean = 2, var = 0.667 → std = 0.8165</div>
+              <div class="mono">(1−2)/0.8165 = −1.2247</div>
+              <div class="mono">(2−2)/0.8165 = 0</div>
+              <div class="mono">(3−2)/0.8165 = +1.2247</div>
+              <div class="mono">→ [[−1.225, 0, +1.225],<br>&nbsp;&nbsp;&nbsp;[−1.225, 0, +1.225]]</div>
+              <div class="sub" style="font-size:13px;color:var(--muted)">Each <b>token</b> normalized within itself.</div>
+            </div></div>
+          </div>
+        </div>
+
+        <div class="callout c-insight">
+          <div class="ico">💡</div>
+          <div class="body">
+            <b>Why Transformers pick Layer Norm</b>
+            <p>BatchNorm's statistics depend on the <i>other samples in the batch</i> — unstable for small
+            batches and awkward for variable-length sequences (padding pollutes the mean). LayerNorm normalizes
+            each token over its own features, so it is <b>batch-size and sequence-length independent</b> — ideal
+            for NLP. In the Transformer it appears as <b>"Add &amp; Norm"</b>: <span class="mono">LayerNorm(x +
+            Sublayer(x))</span>, combining a <b>residual connection</b> with normalization after every sublayer.</p>
+          </div>
+        </div>
+
+        <div class="scroll-x">
+        <table class="tbl">
+          <thead><tr><th></th><th>Batch Norm</th><th>Layer Norm</th></tr></thead>
+          <tbody>
+            <tr><td>Normalize over</td><td>The batch (per feature)</td><td>The features (per token)</td></tr>
+            <tr><td>Depends on batch?</td><td class="no">Yes</td><td class="yes">No</td></tr>
+            <tr><td>Variable length OK?</td><td class="no">Awkward</td><td class="yes">Natural</td></tr>
+            <tr><td>Typical home</td><td>CNNs / vision</td><td>Transformers / NLP / RNNs</td></tr>
+            <tr><td>Train vs inference</td><td>Different (running stats)</td><td>Identical</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <a class="paper" href="https://arxiv.org/abs/1502.03167" target="_blank"><b>Ioffe &amp; Szegedy 2015</b> — Batch Normalization</a>
+        <a class="paper" href="https://arxiv.org/abs/1607.06450" target="_blank"><b>Ba et al. 2016</b> — Layer Normalization</a>
+
+        <div class="summary-box">
+          <b>Part 6 summary —</b> Normalization keeps activations at mean≈0/var≈1 for fast, stable training, then
+          rescales with learned γ, β. <b>BatchNorm</b> normalizes per feature across the batch; <b>LayerNorm</b>
+          per token across features. Transformers use LayerNorm (batch-independent) inside <b>Add &amp; Norm</b>.
+        </div>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 7 — FULL TRANSFORMER                                      ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-eval">
+        <h2>Part 7</h2>
+        <h1>The Complete Transformer</h1>
+        <p>Assemble every block into the full encoder–decoder of <i>"Attention Is All You Need"</i>, with the
+        paper's exact configuration.</p>
+      </div>
+
+      <section class="part" id="c7" style="border-top:none">
+        <span class="badge b-eval">Chapter 7</span>
+        <h2 class="title">Putting It All Together</h2>
+
+        <span class="chip">The architecture</span>
+        <p>The Transformer is a stack of <b>N encoder layers</b> feeding a stack of <b>N decoder layers</b>.
+        Each encoder layer = multi-head self-attention + feed-forward, each wrapped in Add&amp;Norm. Each
+        decoder layer adds a <b>masked</b> self-attention and a <b>cross-attention</b> to the encoder output.</p>
+
+        <div class="fig">
+          <svg viewBox="0 0 700 470" role="img" aria-label="Full Transformer encoder decoder architecture">
+            <style>
+              .x15_blk{rx:8;stroke-width:1.5} .x15_t{font-size:12px;fill:#1c2330;text-anchor:middle}
+              .x15_tw{font-size:12px;fill:#fff;text-anchor:middle;font-weight:600}
+              .x15_lbl{font-size:12px;font-weight:700;fill:#5b6577;text-anchor:middle;letter-spacing:.05em}
+              .x15_ar{stroke:#94a3b8;stroke-width:2;fill:none;marker-end:url(#tf)}
+              .x15_ad{font-size:10.5px;fill:#5b6577;text-anchor:middle}
+            </style>
+            <defs><marker id="tf" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+
+            <!-- ENCODER stack -->
+            <rect x="40" y="60" width="250" height="320" rx="14" fill="#f0fdfa" stroke="#0ea5a4" stroke-dasharray="5 4"/>
+            <text class="x15_lbl" x="165" y="50">ENCODER  ×N (=6)</text>
+            <rect class="x15_blk" x="70" y="90" width="190" height="40" fill="#cffafe" stroke="#0ea5a4"/>
+            <text class="x15_t" x="165" y="115">Input Embedding + PE</text>
+            <rect class="x15_blk" x="70" y="150" width="190" height="46" fill="#a7f3d0" stroke="#0ea5a4"/>
+            <text class="x15_t" x="165" y="170">Multi-Head</text><text class="x15_t" x="165" y="186">Self-Attention</text>
+            <rect class="x15_blk" x="70" y="206" width="190" height="26" fill="#e2e8f0" stroke="#94a3b8"/>
+            <text class="x15_ad" x="165" y="223">Add &amp; Norm</text>
+            <rect class="x15_blk" x="70" y="248" width="190" height="46" fill="#a7f3d0" stroke="#0ea5a4"/>
+            <text class="x15_t" x="165" y="268">Feed-Forward</text><text class="x15_t" x="165" y="284">(FFN)</text>
+            <rect class="x15_blk" x="70" y="304" width="190" height="26" fill="#e2e8f0" stroke="#94a3b8"/>
+            <text class="x15_ad" x="165" y="321">Add &amp; Norm</text>
+            <text class="x15_ad" x="165" y="352">→ encoder output (K, V for decoder)</text>
+            <line class="x15_ar" x1="165" y1="130" x2="165" y2="148"/>
+            <line class="x15_ar" x1="165" y1="232" x2="165" y2="246"/>
+
+            <!-- DECODER stack -->
+            <rect x="410" y="60" width="250" height="360" rx="14" fill="#fdf2f8" stroke="#ec4899" stroke-dasharray="5 4"/>
+            <text class="x15_lbl" x="535" y="50">DECODER  ×N (=6)</text>
+            <rect class="x15_blk" x="440" y="90" width="190" height="40" fill="#fce7f3" stroke="#ec4899"/>
+            <text class="x15_t" x="535" y="115">Output Embedding + PE</text>
+            <rect class="x15_blk" x="440" y="150" width="190" height="46" fill="#fbcfe8" stroke="#ec4899"/>
+            <text class="x15_t" x="535" y="170">Masked Multi-Head</text><text class="x15_t" x="535" y="186">Self-Attention</text>
+            <rect class="x15_blk" x="440" y="206" width="190" height="26" fill="#e2e8f0" stroke="#94a3b8"/>
+            <text class="x15_ad" x="535" y="223">Add &amp; Norm</text>
+            <rect class="x15_blk" x="440" y="248" width="190" height="46" fill="#fbcfe8" stroke="#ec4899"/>
+            <text class="x15_t" x="535" y="268">Cross-Attention</text><text class="x15_t" x="535" y="284">(Q=dec, K,V=enc)</text>
+            <rect class="x15_blk" x="440" y="304" width="190" height="26" fill="#e2e8f0" stroke="#94a3b8"/>
+            <text class="x15_ad" x="535" y="321">Add &amp; Norm</text>
+            <rect class="x15_blk" x="440" y="346" width="190" height="40" fill="#fbcfe8" stroke="#ec4899"/>
+            <text class="x15_t" x="535" y="371">Feed-Forward + Add&amp;Norm</text>
+            <line class="x15_ar" x1="535" y1="130" x2="535" y2="148"/>
+            <line class="x15_ar" x1="535" y1="232" x2="535" y2="246"/>
+            <line class="x15_ar" x1="535" y1="330" x2="535" y2="344"/>
+
+            <!-- encoder -> decoder cross attention link -->
+            <line class="x15_ar" x1="260" y1="271" x2="438" y2="271"/>
+            <text class="x15_ad" x="350" y="263">K, V</text>
+
+            <!-- output head -->
+            <rect class="x15_blk" x="440" y="404" width="190" height="0" fill="none"/>
+            <rect class="x15_blk" x="455" y="430" width="160" height="32" fill="#3b82f6" stroke="#2563eb"/>
+            <text class="x15_tw" x="535" y="451">Linear → Softmax</text>
+            <line class="x15_ar" x1="535" y1="386" x2="535" y2="428"/>
+          </svg>
+          <div class="cap">The full Transformer: a self-attending encoder stack feeds keys &amp; values to a masked, cross-attending decoder stack, ending in Linear→Softmax over the vocabulary.</div>
+        </div>
+
+        <h3>Residual connections — how every sub-layer is wrapped</h3>
+        <p>Each sub-layer (attention and FFN, in both encoder and decoder) is wrapped in a <b>residual (skip)
+        connection</b> then LayerNorm: the sub-layer's <i>input</i> is added back to its <i>output</i> before
+        normalizing. This skip path lets gradients flow straight through, so 6 layers can be stacked without
+        vanishing gradients.</p>
+        <div class="formula">
+          <div class="eq">output = LayerNorm( x + Sublayer(x) )</div>
+          <div class="where">The "<b>+ x</b>" is the residual. Without it, deep Transformers do not train.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 560 520" role="img" aria-label="One layer with residual connections">
+            <defs>
+              <marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker>
+              <marker id="mp" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7c3aed"/></marker>
+            </defs>
+            <style>
+              .x16_b{rx:9} .x16_t{font-size:12.5px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x16_add{fill:#fff;stroke:#7c3aed;stroke-width:2}
+              .x16_a{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#ma)}
+              .x16_sk{stroke:#7c3aed;stroke-width:2;stroke-dasharray:5 4;fill:none;marker-end:url(#mp)}
+              .x16_skl{fill:#7c3aed;font-size:10.5px}
+            </style>
+            <!-- output -->
+            <rect class="x16_b" x="130" y="110" width="180" height="40" fill="#e0e7ff" stroke="#6366f1"/><text class="x16_t" x="220" y="135">Layer output → next layer</text>
+            <!-- add&norm 2 -->
+            <rect class="x16_b" x="130" y="178" width="180" height="36" fill="#e2e8f0" stroke="#94a3b8"/><text class="x16_t" x="220" y="201">Add &amp; Norm</text>
+            <!-- plus 2 -->
+            <circle class="x16_add" cx="220" cy="234" r="12"/><text class="x16_t" x="220" y="239">+</text>
+            <!-- FFN -->
+            <rect class="x16_b" x="130" y="258" width="180" height="44" fill="#eff6ff" stroke="#3b82f6"/><text class="x16_t" x="220" y="284">Feed-Forward</text>
+            <!-- branch2 -->
+            <circle cx="220" cy="318" r="4" fill="#1c2330"/>
+            <!-- add&norm 1 -->
+            <rect class="x16_b" x="130" y="336" width="180" height="36" fill="#e2e8f0" stroke="#94a3b8"/><text class="x16_t" x="220" y="359">Add &amp; Norm</text>
+            <!-- plus 1 -->
+            <circle class="x16_add" cx="220" cy="392" r="12"/><text class="x16_t" x="220" y="397">+</text>
+            <!-- attention -->
+            <rect class="x16_b" x="130" y="416" width="180" height="44" fill="#a7f3d0" stroke="#0ea5a4"/><text class="x16_t" x="220" y="442">Multi-Head Attention</text>
+            <!-- branch1 -->
+            <circle cx="220" cy="476" r="4" fill="#1c2330"/>
+            <text class="x16_t" x="220" y="500" font-size="12">x  (sub-layer input)</text>
+            <!-- main up arrows -->
+            <line class="x16_a" x1="220" y1="476" x2="220" y2="462"/>
+            <line class="x16_a" x1="220" y1="416" x2="220" y2="406"/>
+            <line class="x16_a" x1="220" y1="380" x2="220" y2="374"/>
+            <line class="x16_a" x1="220" y1="336" x2="220" y2="322"/>
+            <line class="x16_a" x1="220" y1="314" x2="220" y2="304"/>
+            <line class="x16_a" x1="220" y1="258" x2="220" y2="248"/>
+            <line class="x16_a" x1="220" y1="222" x2="220" y2="216"/>
+            <line class="x16_a" x1="220" y1="178" x2="220" y2="152"/>
+            <!-- residual skips -->
+            <path class="x16_sk" d="M220,476 L430,476 L430,392 L234,392"/>
+            <path class="x16_sk" d="M220,318 L400,318 L400,234 L234,234"/>
+            <text class="x16_skl" transform="rotate(-90 452,440)" x="452" y="440">residual skip</text>
+            <text class="x16_skl" transform="rotate(-90 422,282)" x="422" y="282">residual skip</text>
+            <text class="x16_skl" x="455" y="150">x is added</text>
+            <text class="x16_skl" x="455" y="166">back after</text>
+            <text class="x16_skl" x="455" y="182">each sub-</text>
+            <text class="x16_skl" x="455" y="198">layer (⊕)</text>
+          </svg>
+          <div class="cap">One layer: the input <b>x</b> flows <i>into</i> each sub-layer and <i>around</i> it (purple skip); the two meet at ⊕ (Add), then LayerNorm. Two such sub-layers per encoder layer; three per decoder layer.</div>
+        </div>
+
+        <h3>The layer stack — encoder output flows to every decoder layer</h3>
+        <p>The encoder is <b>6 layers</b> deep; each feeds the next, and the <b>final</b> encoder output (a
+        3×512 matrix) is what every decoder layer reads as <b>K, V</b> in cross-attention. The decoder is also
+        6 layers; only its top output goes to Linear→Softmax.</p>
+        <div class="fig">
+          <svg viewBox="0 0 740 430" role="img" aria-label="Encoder decoder layer stack">
+            <defs><marker id="sa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker>
+              <marker id="sb" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#10b981"/></marker></defs>
+            <style>.x17_eb{rx:7;fill:#cffafe;stroke:#0ea5a4}.x17_db{rx:7;fill:#fce7f3;stroke:#ec4899}
+              .x17_t{font-size:11.5px;font-weight:600;fill:#1c2330;text-anchor:middle}.x17_c{font-size:11px;fill:#5b6577;text-anchor:middle}
+              .x17_a{stroke:#94a3b8;stroke-width:1.6;fill:none;marker-end:url(#sa)}
+              .x17_kv{stroke:#10b981;stroke-width:1.8;fill:none;marker-end:url(#sb)}</style>
+            <!-- encoder column -->
+            <text class="x17_c" x="155" y="416">Source: "We are friends"</text>
+            <rect class="x17_eb" x="70" y="336" width="170" height="30"/><text class="x17_t" x="155" y="355">Encoder layer 1</text>
+            <rect class="x17_eb" x="70" y="300" width="170" height="30"/><text class="x17_t" x="155" y="319">Encoder layer 2</text>
+            <rect class="x17_eb" x="70" y="264" width="170" height="30"/><text class="x17_t" x="155" y="283">Encoder layer 3</text>
+            <rect class="x17_eb" x="70" y="228" width="170" height="30"/><text class="x17_t" x="155" y="247">Encoder layer 4</text>
+            <rect class="x17_eb" x="70" y="192" width="170" height="30"/><text class="x17_t" x="155" y="211">Encoder layer 5</text>
+            <rect class="x17_eb" x="70" y="156" width="170" height="30"/><text class="x17_t" x="155" y="175">Encoder layer 6</text>
+            <rect class="x17_eb" x="70" y="100" width="170" height="30" fill="#a7f3d0"/><text class="x17_t" x="155" y="119">Encoder output 3×512</text>
+            <line class="x17_a" x1="155" y1="396" x2="155" y2="368"/>
+            <line class="x17_a" x1="155" y1="336" x2="155" y2="332"/><line class="x17_a" x1="155" y1="300" x2="155" y2="296"/>
+            <line class="x17_a" x1="155" y1="264" x2="155" y2="260"/><line class="x17_a" x1="155" y1="228" x2="155" y2="224"/>
+            <line class="x17_a" x1="155" y1="192" x2="155" y2="188"/><line class="x17_a" x1="155" y1="156" x2="155" y2="132"/>
+            <!-- decoder column -->
+            <text class="x17_c" x="585" y="416">Target (shifted): ⟨SOS⟩ Hum dost</text>
+            <rect class="x17_db" x="500" y="336" width="170" height="30"/><text class="x17_t" x="585" y="355">Decoder layer 1</text>
+            <rect class="x17_db" x="500" y="300" width="170" height="30"/><text class="x17_t" x="585" y="319">Decoder layer 2</text>
+            <rect class="x17_db" x="500" y="264" width="170" height="30"/><text class="x17_t" x="585" y="283">Decoder layer 3</text>
+            <rect class="x17_db" x="500" y="228" width="170" height="30"/><text class="x17_t" x="585" y="247">Decoder layer 4</text>
+            <rect class="x17_db" x="500" y="192" width="170" height="30"/><text class="x17_t" x="585" y="211">Decoder layer 5</text>
+            <rect class="x17_db" x="500" y="156" width="170" height="30"/><text class="x17_t" x="585" y="175">Decoder layer 6</text>
+            <rect class="x17_db" x="500" y="100" width="170" height="30" fill="#bfdbfe" stroke="#3b82f6"/><text class="x17_t" x="585" y="119">Linear → Softmax</text>
+            <line class="x17_a" x1="585" y1="396" x2="585" y2="368"/>
+            <line class="x17_a" x1="585" y1="336" x2="585" y2="332"/><line class="x17_a" x1="585" y1="300" x2="585" y2="296"/>
+            <line class="x17_a" x1="585" y1="264" x2="585" y2="260"/><line class="x17_a" x1="585" y1="228" x2="585" y2="224"/>
+            <line class="x17_a" x1="585" y1="192" x2="585" y2="188"/><line class="x17_a" x1="585" y1="156" x2="585" y2="132"/>
+            <text class="x17_c" x="585" y="84">P(next word)</text><line class="x17_a" x1="585" y1="100" x2="585" y2="90"/>
+            <!-- K,V bus -->
+            <line class="x17_kv" x1="240" y1="115" x2="360" y2="115"/>
+            <line x1="360" y1="115" x2="360" y2="351" stroke="#10b981" stroke-width="1.8"/>
+            <line class="x17_kv" x1="360" y1="351" x2="498" y2="351"/>
+            <line class="x17_kv" x1="360" y1="315" x2="498" y2="315"/>
+            <line class="x17_kv" x1="360" y1="279" x2="498" y2="279"/>
+            <line class="x17_kv" x1="360" y1="243" x2="498" y2="243"/>
+            <line class="x17_kv" x1="360" y1="207" x2="498" y2="207"/>
+            <line class="x17_kv" x1="360" y1="171" x2="498" y2="171"/>
+            <text x="360" y="104" text-anchor="middle" font-size="11" font-weight="700" fill="#059669">K, V</text>
+            <text x="300" y="140" text-anchor="middle" font-size="10.5" fill="#059669">encoder output →</text>
+            <text x="300" y="154" text-anchor="middle" font-size="10.5" fill="#059669">every decoder layer</text>
+          </svg>
+          <div class="cap">The 6-layer encoder stack produces one output that is broadcast as K,V into the cross-attention of <b>all 6</b> decoder layers — the bridge from input to output.</div>
+        </div>
+        <h3>Combined detailed diagram — full encoder + decoder</h3>
+        <p>The whole model on one canvas: the 6-layer encoder (left) with its two sub-layers, the 6-layer
+        decoder (right) with its three sub-layers, every sub-layer wrapped in a <b style="color:#7c3aed">residual
+        skip</b> + Add&amp;Norm, and the cross-attention bridge carrying the encoder output (K,V) into the decoder.</p>
+        <div class="fig">
+          <svg viewBox="0 0 860 770" role="img" aria-label="Combined full Transformer encoder and decoder">
+            <defs>
+              <marker id="cmba" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker>
+              <marker id="cmbg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#10b981"/></marker>
+            </defs>
+            <style>
+              .cmb_t{font-size:11.5px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .cmb_c{font-size:10.5px;fill:#5b6577;text-anchor:middle}
+              .cmb_an{font-size:10px;fill:#c0392b;font-family:monospace;text-anchor:middle}
+              .cmb_a{stroke:#94a3b8;stroke-width:1.6;fill:none;marker-end:url(#cmba)}
+              .cmb_sk{stroke:#7c3aed;stroke-width:1.8;stroke-dasharray:4 3;fill:none}
+              .cmb_add{fill:#fff;stroke:#7c3aed;stroke-width:1.6}
+              .cmb_lab{font-size:11px;font-weight:700;letter-spacing:.04em}
+            </style>
+            <!-- column headers -->
+            <text class="cmb_lab" x="215" y="30" text-anchor="middle" fill="#0f766e">ENCODER ×6</text>
+            <text class="cmb_lab" x="615" y="30" text-anchor="middle" fill="#be185d">DECODER ×6</text>
+            <!-- dashed layer envelopes -->
+            <rect x="56" y="416" width="318" height="240" rx="12" fill="none" stroke="#0ea5a4" stroke-dasharray="5 4"/>
+            <rect x="486" y="306" width="318" height="350" rx="12" fill="none" stroke="#ec4899" stroke-dasharray="5 4"/>
+            <!-- ENCODER column -->
+            <text class="cmb_c" x="215" y="748">Source: "How are you"</text>
+            <rect x="70" y="694" width="290" height="38" rx="8" fill="#cffafe" stroke="#0ea5a4"/><text class="cmb_t" x="215" y="717">Input Embedding + Positional</text>
+            <text class="cmb_an" x="215" y="680">3 × 512</text>
+            <rect x="70" y="600" width="290" height="42" rx="8" fill="#a7f3d0" stroke="#0ea5a4"/><text class="cmb_t" x="215" y="625">Multi-Head Self-Attention</text>
+            <rect x="70" y="548" width="290" height="26" rx="8" fill="#e2e8f0" stroke="#94a3b8"/><text class="cmb_t" x="226" y="565">Add &amp; Norm</text>
+            <circle class="cmb_add" cx="86" cy="561" r="9"/><text class="cmb_t" x="86" y="565" font-size="11">+</text>
+            <rect x="70" y="480" width="290" height="42" rx="8" fill="#a7f3d0" stroke="#0ea5a4"/><text class="cmb_t" x="215" y="505">Feed-Forward</text>
+            <rect x="70" y="428" width="290" height="26" rx="8" fill="#e2e8f0" stroke="#94a3b8"/><text class="cmb_t" x="226" y="445">Add &amp; Norm</text>
+            <circle class="cmb_add" cx="86" cy="441" r="9"/><text class="cmb_t" x="86" y="445" font-size="11">+</text>
+            <rect x="70" y="370" width="290" height="30" rx="8" fill="#5eead4" stroke="#0ea5a4"/><text class="cmb_t" x="215" y="389">Encoder output  3 × 512</text>
+            <!-- encoder residual skips -->
+            <path class="cmb_sk" d="M70,636 Q44,598 70,560"/>
+            <path class="cmb_sk" d="M70,516 Q44,478 70,440"/>
+            <!-- encoder arrows -->
+            <line class="cmb_a" x1="215" y1="742" x2="215" y2="734"/>
+            <line class="cmb_a" x1="215" y1="694" x2="215" y2="644"/>
+            <line class="cmb_a" x1="215" y1="600" x2="215" y2="576"/>
+            <line class="cmb_a" x1="215" y1="548" x2="215" y2="524"/>
+            <line class="cmb_a" x1="215" y1="480" x2="215" y2="456"/>
+            <line class="cmb_a" x1="215" y1="428" x2="215" y2="402"/>
+            <!-- DECODER column -->
+            <text class="cmb_c" x="615" y="748">Target (shifted): ⟨SOS⟩ Hum dost</text>
+            <rect x="500" y="694" width="290" height="38" rx="8" fill="#fce7f3" stroke="#ec4899"/><text class="cmb_t" x="615" y="717">Output Embedding + Positional</text>
+            <text class="cmb_an" x="615" y="680">4 × 512</text>
+            <rect x="500" y="610" width="290" height="42" rx="8" fill="#fbcfe8" stroke="#ec4899"/><text class="cmb_t" x="615" y="635">Masked Multi-Head Self-Attn</text>
+            <rect x="500" y="558" width="290" height="26" rx="8" fill="#e2e8f0" stroke="#94a3b8"/><text class="cmb_t" x="656" y="575">Add &amp; Norm</text>
+            <circle class="cmb_add" cx="774" cy="571" r="9"/><text class="cmb_t" x="774" y="575" font-size="11">+</text>
+            <rect x="500" y="490" width="290" height="42" rx="8" fill="#fbcfe8" stroke="#ec4899"/><text class="cmb_t" x="615" y="510">Cross-Attention</text><text class="cmb_c" x="615" y="524">K,V ← encoder</text>
+            <rect x="500" y="438" width="290" height="26" rx="8" fill="#e2e8f0" stroke="#94a3b8"/><text class="cmb_t" x="656" y="455">Add &amp; Norm</text>
+            <circle class="cmb_add" cx="774" cy="451" r="9"/><text class="cmb_t" x="774" y="455" font-size="11">+</text>
+            <rect x="500" y="370" width="290" height="42" rx="8" fill="#fbcfe8" stroke="#ec4899"/><text class="cmb_t" x="615" y="395">Feed-Forward</text>
+            <rect x="500" y="318" width="290" height="26" rx="8" fill="#e2e8f0" stroke="#94a3b8"/><text class="cmb_t" x="656" y="335">Add &amp; Norm</text>
+            <circle class="cmb_add" cx="774" cy="331" r="9"/><text class="cmb_t" x="774" y="335" font-size="11">+</text>
+            <rect x="500" y="262" width="290" height="28" rx="8" fill="#bfdbfe" stroke="#3b82f6"/><text class="cmb_t" x="615" y="281">Linear</text>
+            <rect x="500" y="222" width="290" height="28" rx="8" fill="#3b82f6" stroke="#2563eb"/><text class="cmb_t" x="615" y="241" fill="#fff">Softmax</text>
+            <text class="cmb_c" x="615" y="206">P(next word)</text>
+            <!-- decoder residual skips -->
+            <path class="cmb_sk" d="M790,646 Q816,608 790,570"/>
+            <path class="cmb_sk" d="M790,526 Q816,488 790,450"/>
+            <path class="cmb_sk" d="M790,406 Q816,368 790,330"/>
+            <!-- decoder arrows -->
+            <line class="cmb_a" x1="615" y1="742" x2="615" y2="734"/>
+            <line class="cmb_a" x1="615" y1="694" x2="615" y2="654"/>
+            <line class="cmb_a" x1="615" y1="610" x2="615" y2="586"/>
+            <line class="cmb_a" x1="615" y1="558" x2="615" y2="534"/>
+            <line class="cmb_a" x1="615" y1="490" x2="615" y2="466"/>
+            <line class="cmb_a" x1="615" y1="438" x2="615" y2="414"/>
+            <line class="cmb_a" x1="615" y1="370" x2="615" y2="346"/>
+            <line class="cmb_a" x1="615" y1="318" x2="615" y2="292"/>
+            <line class="cmb_a" x1="615" y1="262" x2="615" y2="252"/>
+            <line class="cmb_a" x1="615" y1="222" x2="615" y2="212"/>
+            <!-- x6 labels -->
+            <text class="cmb_c" x="330" y="412" fill="#0f766e" font-weight="700">×6</text>
+            <text class="cmb_c" x="470" y="302" fill="#be185d" font-weight="700">×6</text>
+            <!-- cross bridge -->
+            <path d="M360,385 C430,385 430,511 498,511" class="cmb_a" stroke="#10b981" stroke-width="2" marker-end="url(#cmbg)"/>
+            <text x="430" y="452" text-anchor="middle" font-size="10.5" fill="#059669" font-weight="700">K, V</text>
+            <text x="430" y="466" text-anchor="middle" font-size="9.5" fill="#059669">to every decoder layer</text>
+          </svg>
+          <div class="cap">The complete Transformer end-to-end: source → 6 encoder layers → encoder output → (K,V) into the cross-attention of all 6 decoder layers → Linear → Softmax → next token. Purple = residual skips; teal/pink dashed = one repeated layer (×6).</div>
+        </div>
+
+        <h3>End-to-end worked example — predicting one word</h3>
+        <p>Let's translate <i>"We are friends" → "Hum dost hai"</i> and watch the model predict the word
+        <b>after</b> "⟨SOS⟩ Hum". We trace one decode step from input to output. (Shapes use the paper's real
+        dims; the small numbers reuse the verified attention example so you can follow the arithmetic.)</p>
+
+        <div class="fig">
+          <svg viewBox="0 0 820 120" role="img" aria-label="End to end one decode step strip">
+            <defs><marker id="e2sa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.e2s_b{rx:9;stroke-width:1.4}.e2s_t{font-size:10.5px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .e2s_a{stroke:#94a3b8;stroke-width:1.6;fill:none;marker-end:url(#e2sa)}</style>
+            <text x="410" y="20" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1c2330">One decode step: predict the word after "⟨SOS⟩ Hum"</text>
+            <rect class="e2s_b" x="20"  y="42" width="100" height="46" fill="#e0f2fe" stroke="#0ea5a4"/><text class="e2s_t" x="70"  y="62">⟨SOS⟩ Hum</text><text class="e2s_t" x="70"  y="77" font-size="9.5" font-weight="400">input so far</text>
+            <rect class="e2s_b" x="130" y="42" width="100" height="46" fill="#eef2ff" stroke="#c7d2fe"/><text class="e2s_t" x="180" y="68">Embed + PE</text>
+            <rect class="e2s_b" x="240" y="42" width="100" height="46" fill="#fbcfe8" stroke="#ec4899"/><text class="e2s_t" x="290" y="62">Masked</text><text class="e2s_t" x="290" y="77">Self-Attn</text>
+            <rect class="e2s_b" x="350" y="42" width="100" height="46" fill="#fbcfe8" stroke="#ec4899"/><text class="e2s_t" x="400" y="62">Cross-Attn</text><text class="e2s_t" x="400" y="77" font-size="9.5" font-weight="400">read source</text>
+            <rect class="e2s_b" x="460" y="42" width="100" height="46" fill="#eff6ff" stroke="#3b82f6"/><text class="e2s_t" x="510" y="68">FFN</text>
+            <rect class="e2s_b" x="570" y="42" width="100" height="46" fill="#bfdbfe" stroke="#3b82f6"/><text class="e2s_t" x="620" y="62">Linear →</text><text class="e2s_t" x="620" y="77">Softmax</text>
+            <rect class="e2s_b" x="680" y="42" width="120" height="46" fill="#dcfce7" stroke="#16a34a"/><text class="e2s_t" x="740" y="62" fill="#15803d">"dost"</text><text class="e2s_t" x="740" y="77" font-size="9.5" font-weight="400" fill="#15803d">p = 0.89 ✓</text>
+            <line class="e2s_a" x1="120" y1="65" x2="129" y2="65"/><line class="e2s_a" x1="230" y1="65" x2="239" y2="65"/>
+            <line class="e2s_a" x1="340" y1="65" x2="349" y2="65"/><line class="e2s_a" x1="450" y1="65" x2="459" y2="65"/>
+            <line class="e2s_a" x1="560" y1="65" x2="569" y2="65"/><line class="e2s_a" x1="670" y1="65" x2="679" y2="65"/>
+          </svg>
+          <div class="cap">The seven stages of a single decode step, ending in the predicted token "dost".</div>
+        </div>
+
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Encode the source "We are friends"</div>
+            <div>Tokenize → embed → +PE → 6 encoder layers → <b>encoder output = 3 × 512</b> (one 512-vector per
+            source token). Computed once and reused as <b>K, V</b> for every decoder cross-attention.</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Decoder input so far: "⟨SOS⟩ Hum"</div>
+            <div>Shift-right is already done. Embed + positional → <b>X = 2 × 512</b> (rows for ⟨SOS⟩ and Hum).</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">Masked self-attention (no peeking ahead)</div>
+            <div>Q,K,V = X·W (2×64). Scores <b>2×2</b>, add causal mask so "Hum" sees only {⟨SOS⟩, Hum},
+            ÷√64, softmax, ×V → concat → ·W<sub>O</sub> → <b>2 × 512</b>, then <span class="mono">+ X</span>
+            (residual) and LayerNorm.</div>
+          </div></div>
+          <div class="step"><div class="num">4</div><div class="stepbody">
+            <div class="lead">Cross-attention — the decoder reads the source</div>
+            <div>The query for the "Hum" position (toy <span class="mono">q=[2, 0.5]</span>) attends to the
+            encoder's K,V (toy <span class="mono">K=[[0,2],[2,0],[1,1]]</span>):</div>
+            <div class="mono">scores = [1, 4, 2.5] → ÷√2 → [0.707, 2.828, 1.768]</div>
+            <div class="mono">softmax → [0.082, <b>0.682</b>, 0.236]  → aligns to source token 2</div>
+            <div class="mono">context = [1.082, 1.0]</div>
+            <div style="font-size:13px;color:var(--muted)">Then <span class="mono">+ residual</span> and LayerNorm → still <b>2 × 512</b>.</div>
+          </div></div>
+          <div class="step"><div class="num">5</div><div class="stepbody">
+            <div class="lead">Feed-forward refine</div>
+            <div><span class="mono">relu(x·W₁+b₁)·W₂+b₂</span>: 512 → 2048 → 512, per token, + residual + LayerNorm
+            → <b>2 × 512</b>. (Repeat steps 3–5 for all 6 decoder layers.)</div>
+          </div></div>
+          <div class="step"><div class="num">6</div><div class="stepbody">
+            <div class="lead">Take the last token → Linear → logits</div>
+            <div>Keep the row for the <i>last</i> position ("Hum") → <b>1 × 512</b>. Multiply by the output
+            matrix <span class="mono">W<sub>vocab</sub> (512 × V)</span> → <b>logits = 1 × V</b>. Toy logits over a
+            5-word vocab:</div>
+            <div class="mono">Hum 1.2 · dost 4.0 · hai 0.5 · mango −1.0 · ⟨EOS⟩ 0.3</div>
+          </div></div>
+          <div class="step"><div class="num">7</div><div class="stepbody">
+            <div class="lead">Softmax → probabilities → argmax</div>
+            <div class="mono">softmax → Hum 0.054 · <b>dost 0.891</b> · hai 0.027 · mango 0.006 · ⟨EOS⟩ 0.022</div>
+            <div><b>argmax = "dost"</b> → emit it, append → input becomes "⟨SOS⟩ Hum dost", and the loop repeats
+            until ⟨EOS⟩.</div>
+          </div></div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 250" role="img" aria-label="Output probability distribution bar chart">
+            <style>.e2b_ax{stroke:#94a3b8;stroke-width:1}.e2b_w{font-size:12px;fill:#1c2330;text-anchor:middle;font-weight:600}
+              .e2b_p{font-size:11px;fill:#5b6577;text-anchor:middle;font-family:monospace}</style>
+            <text x="320" y="20" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1c2330">Output distribution  P(next word | "⟨SOS⟩ Hum")</text>
+            <line class="e2b_ax" x1="40" y1="190" x2="610" y2="190"/>
+            <rect x="52"  y="181" width="76" height="9"   rx="3" fill="#cbd5e1"/><text class="e2b_p" x="90"  y="176">0.054</text><text class="e2b_w" x="90"  y="208">Hum</text>
+            <rect x="162" y="47"  width="76" height="143" rx="3" fill="#16a34a"/><text class="e2b_p" x="200" y="41" fill="#15803d" font-weight="700">0.891</text><text class="e2b_w" x="200" y="208" fill="#15803d">dost ✓</text>
+            <rect x="272" y="186" width="76" height="4"   rx="2" fill="#cbd5e1"/><text class="e2b_p" x="310" y="178">0.027</text><text class="e2b_w" x="310" y="208">hai</text>
+            <rect x="382" y="189" width="76" height="2"   rx="1" fill="#cbd5e1"/><text class="e2b_p" x="420" y="180">0.006</text><text class="e2b_w" x="420" y="208">mango</text>
+            <rect x="492" y="186" width="76" height="4"   rx="2" fill="#cbd5e1"/><text class="e2b_p" x="530" y="178">0.022</text><text class="e2b_w" x="530" y="208">⟨EOS⟩</text>
+            <text x="320" y="234" text-anchor="middle" font-size="11" fill="#5b6577">argmax picks "dost" — the next output token</text>
+          </svg>
+          <div class="cap">The final softmax over the vocabulary: "dost" dominates (0.89), so it is emitted as the predicted word.</div>
+        </div>
+
+        <span class="chip">The paper's exact configuration (base model)</span>
+        <div class="scroll-x">
+        <table class="tbl">
+          <thead><tr><th>Hyperparameter</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>N</td><td>6</td><td>Encoder layers and decoder layers (each).</td></tr>
+            <tr><td>d<sub>model</sub></td><td>512</td><td>Embedding / hidden size throughout.</td></tr>
+            <tr><td>h</td><td>8</td><td>Attention heads (d<sub>k</sub>=d<sub>v</sub>=64).</td></tr>
+            <tr><td>d<sub>ff</sub></td><td>2048</td><td>Inner width of the feed-forward network.</td></tr>
+            <tr><td>P<sub>drop</sub></td><td>0.1</td><td>Dropout rate.</td></tr>
+            <tr><td>Label smoothing</td><td>0.1</td><td>Softens targets → better calibration/BLEU.</td></tr>
+            <tr><td>Optimizer</td><td>Adam + warmup</td><td>β₁=0.9, β₂=0.98; LR warms up 4000 steps then decays.</td></tr>
+            <tr><td>Params (base)</td><td>≈ 65M</td><td>Big model: d<sub>model</sub>=1024, h=16, ≈213M.</td></tr>
+            <tr><td>Result</td><td>28.4 BLEU (En→De)</td><td>41.8 BLEU En→Fr — SOTA at the time, far cheaper to train.</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="formula">
+          <div class="eq">lrate = d<sub>model</sub><sup>−0.5</sup> · min( step<sup>−0.5</sup>, step · warmup<sup>−1.5</sup> )</div>
+          <div class="where">The warmup schedule: learning rate rises linearly for 4000 steps, then decays as 1/√step.</div>
+        </div>
+
+        <div class="callout c-note">
+          <div class="ico">🧱</div>
+          <div class="body">
+            <b>Three places attention appears</b>
+            <p><b>(1) Encoder self-attention</b> — each input token attends to all input tokens.
+            <b>(2) Decoder masked self-attention</b> — each output token attends only to earlier output tokens.
+            <b>(3) Cross-attention</b> — decoder queries attend to the encoder's keys/values. Same scaled
+            dot-product formula, three different sources of Q/K/V.</p>
+          </div>
+        </div>
+
+        <a class="paper" href="https://arxiv.org/abs/1706.03762" target="_blank"><b>Vaswani et al. 2017</b> — Attention Is All You Need (full architecture &amp; §5 training)</a>
+
+        <div class="summary-box">
+          <b>Part 7 summary —</b> The Transformer = <b>6 encoder + 6 decoder</b> layers, d<sub>model</sub>=512,
+          h=8, d<sub>ff</sub>=2048, each sublayer wrapped in residual <b>Add&amp;Norm</b>. Attention shows up in
+          three roles. Next: walk the <b>decoder</b> end to end with its three new blocks.
+        </div>
+      </section>
+
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 8 — DECODER DEEP DIVE                                     ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-adv">
+        <h2>Part 8</h2>
+        <h1>Decoder Deep Dive (Decoder-First Flow)</h1>
+        <p>Now walk the decoder from input to final output, using every concept built so far: Feed-Forward,
+        Masked Self-Attention, and Cross-Attention.</p>
+      </div>
+
+      <!-- ---- Chapter 8 — FFN ---- -->
+      <section class="part" id="c8" style="border-top:none">
+        <span class="badge b-adv">Chapter 8</span>
+        <h2 class="title">Feed-Forward Network (FFN)</h2>
+
+        <span class="chip">What</span>
+        <p>After attention mixes information <i>between</i> tokens, the <b>position-wise feed-forward network</b>
+        processes each token <i>independently</i> through the same two-layer MLP — expanding to a wide hidden
+        size, applying ReLU, then projecting back.</p>
+
+        <span class="chip">Why</span>
+        <p>Attention is mostly linear (a weighted average). The FFN injects <b>non-linearity</b> and
+        per-token "thinking capacity", letting the model transform the blended features. It is where a large
+        share of the parameters (and learned knowledge) lives.</p>
+
+        <div class="formula">
+          <div class="eq">FFN(x) = max(0, x W<sub>1</sub> + b<sub>1</sub>) W<sub>2</sub> + b<sub>2</sub></div>
+          <div class="where">W<sub>1</sub>: d<sub>model</sub>→d<sub>ff</sub> (512→2048), ReLU, W<sub>2</sub>: d<sub>ff</sub>→d<sub>model</sub> (2048→512). Same weights for every position.</div>
+          <div class="sig"><b>Significance:</b> "position-wise" = applied to each token separately (a 1×1
+          transformation), so it adds no cross-token mixing — that job belongs to attention. Expand → non-linear
+          → compress is a classic feature-refinement pattern.</div>
+        </div>
+
+        <span class="chip">Worked example (tiny: d=2 → 4 → 2)</span>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Token vector in</div>
+            <div class="mono">x = [1, −2]</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Expand: xW₁+b₁ (to width 4)</div>
+            <div class="mono">say result = [3, −1, 2, −4]</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">ReLU: max(0, ·)</div>
+            <div class="mono">[3, 0, 2, 0]&nbsp;&nbsp;← negatives zeroed (the non-linearity)</div>
+          </div></div>
+          <div class="step"><div class="num">4</div><div class="stepbody">
+            <div class="lead">Compress: ·W₂+b₂ (back to width 2)</div>
+            <div class="mono">→ [1.4, 0.2]&nbsp;&nbsp;the refined token vector</div>
+          </div></div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 620 150" role="img" aria-label="FFN expand relu compress">
+            <style>.x18_n{fill:#fff;stroke:#ec4899} .x18_z{fill:#fff;stroke:#cbd5e1}
+              .x18_t{font-size:11px;text-anchor:middle;fill:#1c2330} .x18_lab{font-size:11px;fill:#5b6577;text-anchor:middle}</style>
+            <!-- in 2 -->
+            <circle class="x18_n" cx="60" cy="55" r="14"/><circle class="x18_n" cx="60" cy="95" r="14"/>
+            <text class="x18_lab" x="60" y="130">in (512)</text>
+            <!-- hidden 4 -->
+            <circle class="x18_n" cx="280" cy="30" r="14"/><circle class="x18_n" cx="280" cy="62" r="14"/>
+            <circle class="x18_n" cx="280" cy="94" r="14"/><circle class="x18_n" cx="280" cy="126" r="14"/>
+            <text class="x18_lab" x="280" y="146">hidden (2048) + ReLU</text>
+            <!-- out 2 -->
+            <circle class="x18_n" cx="540" cy="55" r="14"/><circle class="x18_n" cx="540" cy="95" r="14"/>
+            <text class="x18_lab" x="540" y="130">out (512)</text>
+            <!-- edges in->hidden -->
+            <g stroke="#f9a8d4" stroke-width="1">
+              <line x1="74" y1="55" x2="266" y2="30"/><line x1="74" y1="55" x2="266" y2="62"/>
+              <line x1="74" y1="55" x2="266" y2="94"/><line x1="74" y1="55" x2="266" y2="126"/>
+              <line x1="74" y1="95" x2="266" y2="30"/><line x1="74" y1="95" x2="266" y2="62"/>
+              <line x1="74" y1="95" x2="266" y2="94"/><line x1="74" y1="95" x2="266" y2="126"/>
+            </g>
+            <g stroke="#f9a8d4" stroke-width="1">
+              <line x1="294" y1="30" x2="526" y2="55"/><line x1="294" y1="62" x2="526" y2="55"/>
+              <line x1="294" y1="94" x2="526" y2="55"/><line x1="294" y1="126" x2="526" y2="55"/>
+              <line x1="294" y1="30" x2="526" y2="95"/><line x1="294" y1="62" x2="526" y2="95"/>
+              <line x1="294" y1="94" x2="526" y2="95"/><line x1="294" y1="126" x2="526" y2="95"/>
+            </g>
+            <text class="x18_lab" x="170" y="18">expand</text>
+            <text class="x18_lab" x="410" y="18">compress</text>
+          </svg>
+          <div class="cap">Expand → ReLU → compress, applied identically to every token position.</div>
+        </div>
+      </section>
+
+      <!-- ---- Chapter 9 — Masked Self-Attention ---- -->
+      <section class="part" id="c9">
+        <span class="badge b-adv">Chapter 9</span>
+        <h2 class="title">Masked Self-Attention</h2>
+
+        <span class="chip">What</span>
+        <p>Masked (causal) self-attention is ordinary self-attention with one rule: a token at position
+        <span class="mono">t</span> may attend to positions <span class="mono">≤ t</span> only — never to
+        future tokens.</p>
+
+        <span class="chip">Why</span>
+        <p>The decoder generates the output <b>one token at a time, left to right</b>. During training we feed
+        the whole target sentence at once for speed, but each position must predict the <i>next</i> word using
+        only words before it. If it could peek ahead, it would "cheat" — copying the answer it's meant to
+        predict. The mask enforces this <b>autoregressive</b> property.</p>
+
+        <span class="chip">How</span>
+        <p>Before softmax, set the scores for future positions to <b>−∞</b>. After softmax,
+        <span class="mono">e<sup>−∞</sup> = 0</span>, so future tokens get exactly zero weight.</p>
+        <div class="formula">
+          <div class="eq">MaskedAttn = softmax( (Q K<sup>⊤</sup> / √d<sub>k</sub>) + M ) V</div>
+          <div class="where">M is a triangular mask: M<sub>ij</sub> = 0 if j ≤ i (allowed), −∞ if j &gt; i (future, blocked).</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 434" role="img" aria-label="Masked self-attention math flow">
+            <defs><marker id="s9a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x19_bx{rx:11;fill:#fce7f3;stroke:#ec4899}.x19_bt{font-size:13px;font-weight:600;fill:#be185d;text-anchor:middle}
+              .x19_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x19_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s9a)}</style>
+            <rect class="x19_bx" x="130" y="24" width="380" height="44"/><text class="x19_bt" x="320" y="51">Scaled scores  Q·Kᵀ / √dₖ   (n × n)</text>
+            <line class="x19_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x19_fm" x="320" y="100">+ M ,  Mᵢⱼ = 0 if j ≤ i ,  −∞ if j &gt; i</text>
+            <rect class="x19_bx" x="130" y="138" width="380" height="44"/><text class="x19_bt" x="320" y="165">Masked scores (upper triangle = −∞)</text>
+            <line class="x19_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x19_fm" x="320" y="214">softmax per row   (e^(−∞) = 0)</text>
+            <rect class="x19_bx" x="130" y="252" width="380" height="44"/><text class="x19_bt" x="320" y="279">A — lower-triangular weights</text>
+            <line class="x19_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x19_fm" x="320" y="328">· V</text>
+            <rect class="x19_bx" x="130" y="366" width="380" height="44"/><text class="x19_bt" x="320" y="393">Masked attention output</text>
+          </svg>
+          <div class="cap">Masked self-attention math flow: add −∞ on the upper triangle before softmax so each token attends only to itself and the past.</div>
+        </div>
+
+        <span class="chip">Worked example — reuse the 3-token scaled scores</span>
+        <p>Scaled scores from Part 3 were
+        <span class="mono">[[0, 2.828, 1.414], [2.828, 0, 1.414], [1.414, 1.414, 1.414]]</span>. Apply the
+        causal mask (block the upper triangle), then softmax each row:</p>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Add mask M (−∞ above diagonal)</div>
+            <div class="mono">[[0,&nbsp;&nbsp;&nbsp;&nbsp;−∞,&nbsp;&nbsp;−∞],</div>
+            <div class="mono">&nbsp;[2.828,&nbsp;0,&nbsp;&nbsp;&nbsp;−∞],</div>
+            <div class="mono">&nbsp;[1.414,&nbsp;1.414,&nbsp;1.414]]</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Softmax each row (−∞ → weight 0)</div>
+            <div class="mono">row1 (token 1): [<b>1.000</b>, 0, 0]&nbsp;&nbsp;← can only see itself</div>
+            <div class="mono">row2 (token 2): [<b>0.944</b>, <b>0.056</b>, 0]&nbsp;&nbsp;← sees tokens 1–2</div>
+            <div class="mono">row3 (token 3): [0.333, 0.333, 0.333]&nbsp;← sees all three</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">Read the triangle</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">The weight matrix is now <b>lower-triangular</b> — every token's context is built only from itself and the past. No look-ahead.</div>
+          </div></div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 560 230" role="img" aria-label="Causal mask triangular attention">
+            <style>.x20_cell2{stroke:#cbd5e1} .x20_vv{font-size:12px;font-family:monospace;text-anchor:middle}
+              .x20_rl{font-size:12px;fill:#5b6577;text-anchor:end} .x20_hd{font-size:12px;fill:#5b6577;text-anchor:middle}</style>
+            <text x="280" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="#1c2330">Masked attention weights (lower-triangular)</text>
+            <text class="x20_hd" x="190" y="56">t₁</text><text class="x20_hd" x="300" y="56">t₂</text><text class="x20_hd" x="410" y="56">t₃</text>
+            <!-- row1 -->
+            <text class="x20_rl" x="150" y="92">t₁ →</text>
+            <rect class="x20_cell2" x="160" y="72" width="80" height="34" fill="#ec4899"/><text class="x20_vv" x="200" y="94" fill="#fff">1.00</text>
+            <rect class="x20_cell2" x="260" y="72" width="80" height="34" fill="#f1f5f9"/><text class="x20_vv" x="300" y="94" fill="#94a3b8">×</text>
+            <rect class="x20_cell2" x="360" y="72" width="80" height="34" fill="#f1f5f9"/><text class="x20_vv" x="400" y="94" fill="#94a3b8">×</text>
+            <!-- row2 -->
+            <text class="x20_rl" x="150" y="134">t₂ →</text>
+            <rect class="x20_cell2" x="160" y="114" width="80" height="34" fill="#ec4899"/><text class="x20_vv" x="200" y="136" fill="#fff">0.944</text>
+            <rect class="x20_cell2" x="260" y="114" width="80" height="34" fill="#fbcfe8"/><text class="x20_vv" x="300" y="136">0.056</text>
+            <rect class="x20_cell2" x="360" y="114" width="80" height="34" fill="#f1f5f9"/><text class="x20_vv" x="400" y="136" fill="#94a3b8">×</text>
+            <!-- row3 -->
+            <text class="x20_rl" x="150" y="176">t₃ →</text>
+            <rect class="x20_cell2" x="160" y="156" width="80" height="34" fill="#f4bcd8"/><text class="x20_vv" x="200" y="178">0.333</text>
+            <rect class="x20_cell2" x="260" y="156" width="80" height="34" fill="#f4bcd8"/><text class="x20_vv" x="300" y="178">0.333</text>
+            <rect class="x20_cell2" x="360" y="156" width="80" height="34" fill="#f4bcd8"/><text class="x20_vv" x="400" y="178">0.333</text>
+            <text class="x20_hd" x="280" y="214">× = blocked future (−∞ → 0)</text>
+          </svg>
+          <div class="cap">The mask zeroes the upper triangle so no token can attend to the future it must predict.</div>
+        </div>
+      </section>
+
+      <!-- ---- Chapter 10 — Cross-Attention ---- -->
+      <section class="part" id="c10">
+        <span class="badge b-adv">Chapter 10</span>
+        <h2 class="title">Cross-Attention (Encoder–Decoder Attention)</h2>
+
+        <span class="chip">What</span>
+        <p>Cross-attention is where the decoder finally <b>reads the source sentence</b>. The
+        <b>Query</b> comes from the decoder (what the decoder is trying to produce now); the <b>Keys and
+        Values</b> come from the <b>encoder's output</b> (the encoded source). It is the direct descendant of
+        the Bahdanau/Luong attention from Part 2 — now inside the Transformer.</p>
+
+        <span class="chip">Why</span>
+        <p>Masked self-attention only lets the decoder look at what it has generated so far. To translate, it
+        must also look at the <i>input</i>. Cross-attention is the bridge: it aligns each output token to the
+        relevant source tokens — "dort" looks back at "sat".</p>
+
+        <div class="formula">
+          <div class="eq">CrossAttn = softmax( Q<sub>dec</sub> K<sub>enc</sub><sup>⊤</sup> / √d<sub>k</sub> ) V<sub>enc</sub></div>
+          <div class="where">Q from decoder states, K &amp; V from encoder output. No mask — the decoder may see the <i>entire</i> source.</div>
+          <div class="sig"><b>Significance:</b> this is the only place information flows from encoder to decoder.
+          The same K,V (encoder output) are reused by every decoder layer.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 640 434" role="img" aria-label="Cross-attention math flow">
+            <defs><marker id="s10a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x21_bx{rx:11;fill:#fce7f3;stroke:#ec4899}.x21_bt{font-size:13px;font-weight:600;fill:#be185d;text-anchor:middle}
+              .x21_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.x21_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#s10a)}</style>
+            <rect class="x21_bx" x="90" y="24" width="460" height="44"/><text class="x21_bt" x="320" y="51">Q ← decoder    ·    K, V ← encoder output</text>
+            <line class="x21_ar" x1="320" y1="68" x2="320" y2="136"/>
+            <text class="x21_fm" x="320" y="100">S = Q · Kᵀ / √dₖ   (target × source)</text>
+            <rect class="x21_bx" x="130" y="138" width="380" height="44"/><text class="x21_bt" x="320" y="165">Cross scores  S</text>
+            <line class="x21_ar" x1="320" y1="182" x2="320" y2="250"/>
+            <text class="x21_fm" x="320" y="214">A = softmax(S)   (alignment)</text>
+            <rect class="x21_bx" x="130" y="252" width="380" height="44"/><text class="x21_bt" x="320" y="279">Alignment weights  A</text>
+            <line class="x21_ar" x1="320" y1="296" x2="320" y2="364"/>
+            <text class="x21_fm" x="320" y="328">context = A · V_enc</text>
+            <rect class="x21_bx" x="130" y="366" width="380" height="44"/><text class="x21_bt" x="320" y="393">Source-aware context → next sub-layer</text>
+          </svg>
+          <div class="cap">Cross-attention math flow: the decoder's Q queries the encoder's K,V; the score matrix is target×source (the alignment).</div>
+        </div>
+
+        <span class="chip">Worked example — one decoder query over 3 encoder tokens</span>
+        <p>Decoder query <span class="mono">q = [2, 0.5]</span>. Encoder keys
+        <span class="mono">K=[[0,2],[2,0],[1,1]]</span>, values
+        <span class="mono">V=[[2,1],[1,1],[1,1]]</span>, d<sub>k</sub>=2.</p>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Scores = q · each key</div>
+            <div class="mono">q·k₁=0+1=1&nbsp;&nbsp;|&nbsp;&nbsp;q·k₂=4+0=4&nbsp;&nbsp;|&nbsp;&nbsp;q·k₃=2+0.5=2.5</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">Scale by √2</div>
+            <div class="mono">[0.707, 2.828, 1.768]</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">Softmax → alignment weights</div>
+            <div class="mono">[0.082, <b>0.682</b>, 0.236]&nbsp;&nbsp;← decoder aligns mostly to source token 2</div>
+          </div></div>
+          <div class="step"><div class="num">4</div><div class="stepbody">
+            <div class="lead">Context = weighted sum of encoder values</div>
+            <div class="mono">0.082·[2,1] + 0.682·[1,1] + 0.236·[1,1] = [<b>1.082, 1.0</b>]</div>
+            <div class="sub" style="font-size:13px;color:var(--muted)">This source-aware vector feeds the decoder's next block — translation grounded in the input.</div>
+          </div></div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 700 210" role="img" aria-label="Cross attention decoder queries encoder">
+            <style>.x22_enc{fill:#cffafe;stroke:#0ea5a4} .x22_dec{fill:#fbcfe8;stroke:#ec4899}
+              .x22_t{font-size:12px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x22_s{font-size:11px;fill:#5b6577;text-anchor:middle}</style>
+            <!-- encoder K/V -->
+            <text class="x22_s" x="120" y="28">Encoder output (K, V)</text>
+            <rect class="x22_enc" x="60" y="40" width="120" height="34" rx="7"/><text class="x22_t" x="120" y="62">src tok 1</text>
+            <rect class="x22_enc" x="60" y="84" width="120" height="34" rx="7"/><text class="x22_t" x="120" y="106">src tok 2</text>
+            <rect class="x22_enc" x="60" y="128" width="120" height="34" rx="7"/><text class="x22_t" x="120" y="150">src tok 3</text>
+            <!-- decoder query -->
+            <rect class="x22_dec" x="520" y="84" width="120" height="34" rx="7"/><text class="x22_t" x="580" y="106">decoder q</text>
+            <text class="x22_s" x="580" y="70">Query (what to write now)</text>
+            <!-- weighted lines -->
+            <line x1="520" y1="101" x2="180" y2="57"  stroke="#ec4899" stroke-width="2"  opacity="0.4"/>
+            <line x1="520" y1="101" x2="180" y2="101" stroke="#ec4899" stroke-width="8"  opacity="0.9"/>
+            <line x1="520" y1="101" x2="180" y2="145" stroke="#ec4899" stroke-width="3.5" opacity="0.6"/>
+            <text class="x22_s" x="350" y="64"  fill="#be185d">0.082</text>
+            <text class="x22_s" x="350" y="96"  fill="#be185d">0.682</text>
+            <text class="x22_s" x="350" y="158" fill="#be185d">0.236</text>
+            <text class="x22_s" x="350" y="190">decoder aligns to source token 2 (thickest)</text>
+          </svg>
+          <div class="cap">Cross-attention: the decoder's query weights the encoder's tokens, pulling the relevant source content into the decoder.</div>
+        </div>
+      </section>
+
+      <!-- ---- Chapter 11 — End-to-End Decode ---- -->
+      <section class="part" id="c11">
+        <span class="badge b-adv">Chapter 11</span>
+        <h2 class="title">End-to-End: One Full Decode Step</h2>
+
+        <span class="chip">The complete decoder flow</span>
+        <p>Putting Chapters 8–10 together, here is the full path of <b>one</b> decoder layer for the token being
+        generated — from the partial output so far to a probability over the vocabulary.</p>
+
+        <div class="fig">
+          <svg viewBox="0 0 320 560" role="img" aria-label="End to end decoder flow">
+            <style>
+              .x23_b{rx:9;stroke-width:1.5} .x23_t{font-size:12px;fill:#1c2330;text-anchor:middle}
+              .x23_t2{font-size:10.5px;fill:#5b6577;text-anchor:middle}
+              .x23_ar{stroke:#94a3b8;stroke-width:2;fill:none;marker-end:url(#e2e)}
+            </style>
+            <defs><marker id="e2e" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <rect class="x23_b" x="60" y="20"  width="200" height="44" fill="#fce7f3" stroke="#ec4899"/>
+            <text class="x23_t" x="160" y="40">Output tokens so far</text><text class="x23_t2" x="160" y="56">"le chat" + Embedding + PE</text>
+            <rect class="x23_b" x="60" y="92"  width="200" height="50" fill="#fbcfe8" stroke="#ec4899"/>
+            <text class="x23_t" x="160" y="113">① Masked Self-Attention</text><text class="x23_t2" x="160" y="130">attend to past output only</text>
+            <rect class="x23_b" x="60" y="170" width="200" height="50" fill="#fbcfe8" stroke="#ec4899"/>
+            <text class="x23_t" x="160" y="191">② Cross-Attention</text><text class="x23_t2" x="160" y="208">Q=dec, K,V=encoder source</text>
+            <rect class="x23_b" x="60" y="248" width="200" height="50" fill="#fbcfe8" stroke="#ec4899"/>
+            <text class="x23_t" x="160" y="269">③ Feed-Forward (FFN)</text><text class="x23_t2" x="160" y="286">per-token non-linear refine</text>
+            <rect class="x23_b" x="60" y="326" width="200" height="40" fill="#e2e8f0" stroke="#94a3b8"/>
+            <text class="x23_t" x="160" y="350">(Add &amp; Norm after each ①②③)</text>
+            <rect class="x23_b" x="60" y="394" width="200" height="44" fill="#bfdbfe" stroke="#3b82f6"/>
+            <text class="x23_t" x="160" y="414">Linear → vocab logits</text><text class="x23_t2" x="160" y="430">project 512 → vocab size</text>
+            <rect class="x23_b" x="60" y="466" width="200" height="44" fill="#3b82f6" stroke="#2563eb"/>
+            <text class="x23_t" x="160" y="486" fill="#fff">Softmax → P(next word)</text><text class="x23_t2" x="160" y="502" fill="#dbeafe">pick "dort" (argmax)</text>
+            <line class="x23_ar" x1="160" y1="64"  x2="160" y2="90"/>
+            <line class="x23_ar" x1="160" y1="142" x2="160" y2="168"/>
+            <line class="x23_ar" x1="160" y1="220" x2="160" y2="246"/>
+            <line class="x23_ar" x1="160" y1="298" x2="160" y2="324"/>
+            <line class="x23_ar" x1="160" y1="366" x2="160" y2="392"/>
+            <line class="x23_ar" x1="160" y1="438" x2="160" y2="464"/>
+          </svg>
+          <div class="cap">One decode step: masked self-attention → cross-attention → FFN (each + Add&amp;Norm) → Linear → Softmax → next token.</div>
+        </div>
+
+        <span class="chip">Worked walkthrough — generating "dort"</span>
+        <div class="mathbox">
+          <div class="step"><div class="num">1</div><div class="stepbody">
+            <div class="lead">Input: tokens generated so far</div>
+            <div class="mono">["&lt;start&gt;", "le", "chat"] → embeddings + positional encoding</div>
+          </div></div>
+          <div class="step"><div class="num">2</div><div class="stepbody">
+            <div class="lead">① Masked self-attention</div>
+            <div class="mono">"chat" attends to {&lt;start&gt;, le, chat} only — not to the future word it must predict.</div>
+          </div></div>
+          <div class="step"><div class="num">3</div><div class="stepbody">
+            <div class="lead">② Cross-attention into the source</div>
+            <div class="mono">decoder query aligns to source "sat" (weight ≈ 0.68 as computed in Ch10).</div>
+          </div></div>
+          <div class="step"><div class="num">4</div><div class="stepbody">
+            <div class="lead">③ Feed-forward + Add&amp;Norm</div>
+            <div class="mono">refine the source-aware vector per token.</div>
+          </div></div>
+          <div class="step"><div class="num">5</div><div class="stepbody">
+            <div class="lead">Linear → Softmax over vocabulary</div>
+            <div class="mono">P("dort")=0.74, P("dormir")=0.11, P("mange")=0.03, … → argmax = <b>"dort"</b></div>
+          </div></div>
+          <div class="step"><div class="num">6</div><div class="stepbody">
+            <div class="lead">Feed back &amp; repeat (autoregression)</div>
+            <div class="mono">append "dort" → input becomes ["&lt;start&gt;","le","chat","dort"] → predict next → until "&lt;end&gt;".</div>
+          </div></div>
+        </div>
+
+        <div class="callout c-insight">
+          <div class="ico">🔁</div>
+          <div class="body">
+            <b>The whole pipeline in one breath</b>
+            <p>Source → <b>encoder</b> (embeddings + PE → self-attention → FFN, ×6) → encoder output. Then for
+            each output token: <b>decoder</b> (masked self-attention over what's written → cross-attention into
+            the encoder → FFN, ×6) → Linear → Softmax → next word → feed it back. Repeat until
+            &lt;end&gt;. Every block is just the <b>scaled dot-product attention</b> and tiny MLPs you now know,
+            stacked with residual <b>Add&amp;Norm</b>.</p>
+          </div>
+        </div>
+
+        <div class="qa">
+          <span class="chip">Interview questions</span>
+          <details><summary>Why does the decoder need a mask but the encoder doesn't?</summary>
+            <div class="ans">The encoder sees the whole input at once (no cheating possible — it's the given source). The decoder generates left-to-right and must not see future target tokens it is supposed to predict, so its self-attention is causally masked.</div></details>
+          <details><summary>What's the difference between self-attention and cross-attention?</summary>
+            <div class="ans">In self-attention Q, K, V all come from the same sequence. In cross-attention the Query comes from the decoder while Keys and Values come from the encoder output — it's how the decoder reads the source.</div></details>
+          <details><summary>Why divide attention scores by √d<sub>k</sub>?</summary>
+            <div class="ans">Dot products grow with dimension (variance ≈ d<sub>k</sub>). Large scores saturate softmax into a near one-hot with vanishing gradients. Scaling by √d<sub>k</sub> keeps variance ≈ 1 and gradients healthy.</div></details>
+          <details><summary>Why multi-head instead of one big attention?</summary>
+            <div class="ans">Different heads attend in different subspaces, capturing several relationships at once (e.g. both readings of "…with a telescope"). Total cost is similar because each head is narrower.</div></details>
+          <details><summary>Why positional encoding?</summary>
+            <div class="ans">Attention is order-invariant (a set operation). Adding sinusoidal position vectors restores word order while staying bounded, periodic, and able to extrapolate to longer sequences.</div></details>
+        </div>
+
+        <div class="summary-box">
+          <b>Part 8 summary —</b> A decoder layer = <b>masked self-attention</b> (no peeking ahead) →
+          <b>cross-attention</b> (read the source, Q=dec/K,V=enc) → <b>FFN</b> (per-token non-linear refine),
+          each in Add&amp;Norm, ending in <b>Linear→Softmax</b> over the vocabulary. Generate one token, feed it
+          back, repeat. That autoregressive loop over the blocks you've learned is the entire Transformer at
+          work.
+        </div>
+      </section>
+
+      <!-- ##################################################################### -->
+      <!-- ##  PART 9 — DATA-FLOW WALKTHROUGH (matrix shapes at every state)  ## -->
+      <!-- ##################################################################### -->
+      <div class="part-head ph-eval">
+        <h2>Part 9</h2>
+        <h1>Full Data-Flow Walkthrough</h1>
+        <p>Trace a real sentence through the architecture as vectors, with the <b>matrix order at every
+        state</b> and the exact operation between states (project → dot with Kᵀ → scale by 1/√d<sub>k</sub> →
+        softmax → ×V → concat → ·W<sub>O</sub>). Encoder on <i>"How are you"</i>, decoder on the translation
+        <i>"We are friends" → "Hum dost hai"</i>.</p>
+      </div>
+
+      <!-- ---- Chapter 12 — Encoder flow ---- -->
+      <section class="part" id="c12" style="border-top:none">
+        <span class="badge b-eval">Chapter 12</span>
+        <h2 class="title">Encoder Flow — Shapes at Every State</h2>
+
+        <span class="chip">Setup</span>
+        <p>Input <i>"How are you"</i> → <b>n = 3 tokens</b>. Paper dims: <b>d<sub>model</sub>=512</b>,
+        <b>h=8 heads</b>, <b>d<sub>k</sub>=d<sub>v</sub>=64</b>, <b>d<sub>ff</sub>=2048</b>. Read the diagram
+        bottom→top; the red labels on the right give the matrix order at each band.</p>
+
+        <div class="fig">
+          <svg viewBox="0 0 800 850" role="img" aria-label="Encoder full data flow with matrix shapes">
+            <defs><marker id="ea" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>
+              .x24_blk{rx:8} .x24_bt{font-size:12.5px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x24_cl{font-size:11px;fill:#5b6577;text-anchor:middle}
+              .x24_an{font-size:11.5px;fill:#c0392b;font-family:monospace}
+              .x24_ant{font-size:11px;fill:#5b6577}
+              .x24_up{stroke:#94a3b8;stroke-width:1.6;fill:none;marker-end:url(#ea)}
+              .x24_vd{stroke-width:1}
+            </style>
+            <!-- helper bands: token centers 245,380,515 ; block 195..565 -->
+            <!-- title -->
+            <text class="x24_cl" x="380" y="22" font-weight="700">↑ to next encoder block (×6 total)</text>
+            <!-- OUT vectors (LayerNorm out) -->
+            <g>
+              <rect class="x24_blk" x="210" y="40" width="70" height="22" fill="#e9d5ff" stroke="#c4b5fd"/><line class="x24_vd" x1="233" y1="40" x2="233" y2="62" stroke="#c4b5fd"/><line class="x24_vd" x1="256" y1="40" x2="256" y2="62" stroke="#c4b5fd"/>
+              <rect class="x24_blk" x="345" y="40" width="70" height="22" fill="#e9d5ff" stroke="#c4b5fd"/><line class="x24_vd" x1="368" y1="40" x2="368" y2="62" stroke="#c4b5fd"/><line class="x24_vd" x1="391" y1="40" x2="391" y2="62" stroke="#c4b5fd"/>
+              <rect class="x24_blk" x="480" y="40" width="70" height="22" fill="#e9d5ff" stroke="#c4b5fd"/><line class="x24_vd" x1="503" y1="40" x2="503" y2="62" stroke="#c4b5fd"/><line class="x24_vd" x1="526" y1="40" x2="526" y2="62" stroke="#c4b5fd"/>
+            </g>
+            <text class="x24_cl" x="245" y="74">Y₁ₙₒᵣₘ</text><text class="x24_cl" x="380" y="74">Y₂ₙₒᵣₘ</text><text class="x24_cl" x="515" y="74">Y₃ₙₒᵣₘ</text>
+            <text class="x24_an" x="580" y="55">3 × 512</text>
+            <!-- LayerNorm -->
+            <line class="x24_up" x1="380" y1="86" x2="380" y2="64"/>
+            <rect class="x24_blk" x="195" y="88" width="370" height="28" fill="#fef9c3" stroke="#eab308"/><text class="x24_bt" x="380" y="107">Layer Normalization</text>
+            <!-- add Zn+Y -->
+            <line class="x24_up" x1="380" y1="134" x2="380" y2="88"/>
+            <circle cx="380" cy="140" r="11" fill="#fff" stroke="#94a3b8"/><text class="x24_bt" x="380" y="144">+</text>
+            <text class="x24_an" x="580" y="144">Zₙ + Y  (residual) → 3 × 512</text>
+            <!-- Y vectors -->
+            <line class="x24_up" x1="380" y1="162" x2="380" y2="152"/>
+            <g>
+              <rect class="x24_blk" x="210" y="164" width="70" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+              <rect class="x24_blk" x="345" y="164" width="70" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+              <rect class="x24_blk" x="480" y="164" width="70" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+            </g>
+            <text class="x24_cl" x="245" y="198">Y₁</text><text class="x24_cl" x="380" y="198">Y₂</text><text class="x24_cl" x="515" y="198">Y₃</text>
+            <text class="x24_an" x="580" y="180">3 × 512</text>
+            <!-- FFN block -->
+            <line class="x24_up" x1="380" y1="210" x2="380" y2="188"/>
+            <rect class="x24_blk" x="195" y="212" width="370" height="96" fill="#eff6ff" stroke="#3b82f6"/>
+            <text class="x24_bt" x="380" y="232">Feed-Forward Network (position-wise)</text>
+            <text class="x24_cl" x="380" y="252">relu( Zₙ·W₁ + b₁ ) · W₂ + b₂</text>
+            <!-- tiny neuron hint -->
+            <g fill="#bfdbfe" stroke="#3b82f6"><circle cx="300" cy="282" r="6"/><circle cx="330" cy="282" r="6"/><circle cx="360" cy="282" r="6"/><circle cx="390" cy="282" r="6"/><circle cx="420" cy="282" r="6"/><circle cx="450" cy="282" r="6"/></g>
+            <text class="x24_cl" x="380" y="302">512 → 2048 (relu) → 512</text>
+            <text class="x24_an" x="580" y="240">W₁: 512 × 2048</text>
+            <text class="x24_an" x="580" y="258">→ 3 × 2048 (relu)</text>
+            <text class="x24_an" x="580" y="276">W₂: 2048 × 512</text>
+            <text class="x24_an" x="580" y="294">→ 3 × 512</text>
+            <!-- Zn vectors -->
+            <line class="x24_up" x1="380" y1="320" x2="380" y2="308"/>
+            <g>
+              <rect class="x24_blk" x="210" y="320" width="70" height="22" fill="#fbcfe8" stroke="#ec4899"/>
+              <rect class="x24_blk" x="345" y="320" width="70" height="22" fill="#fbcfe8" stroke="#ec4899"/>
+              <rect class="x24_blk" x="480" y="320" width="70" height="22" fill="#fbcfe8" stroke="#ec4899"/>
+            </g>
+            <text class="x24_cl" x="245" y="354">Z₁ₙₒᵣₘ</text><text class="x24_cl" x="380" y="354">Z₂ₙₒᵣₘ</text><text class="x24_cl" x="515" y="354">Z₃ₙₒᵣₘ</text>
+            <text class="x24_an" x="580" y="336">3 × 512</text>
+            <!-- LayerNorm 2 -->
+            <line class="x24_up" x1="380" y1="360" x2="380" y2="344"/>
+            <rect class="x24_blk" x="195" y="362" width="370" height="28" fill="#fef9c3" stroke="#eab308"/><text class="x24_bt" x="380" y="381">Layer Normalization</text>
+            <!-- add X+Z -->
+            <line class="x24_up" x1="380" y1="408" x2="380" y2="362"/>
+            <circle cx="380" cy="414" r="11" fill="#fff" stroke="#94a3b8"/><text class="x24_bt" x="380" y="418">+</text>
+            <text class="x24_an" x="580" y="418">X + Z  (residual) → 3 × 512</text>
+            <!-- Z vectors -->
+            <line class="x24_up" x1="380" y1="436" x2="380" y2="426"/>
+            <g>
+              <rect class="x24_blk" x="210" y="438" width="70" height="22" fill="#d1fae5" stroke="#10b981"/>
+              <rect class="x24_blk" x="345" y="438" width="70" height="22" fill="#d1fae5" stroke="#10b981"/>
+              <rect class="x24_blk" x="480" y="438" width="70" height="22" fill="#d1fae5" stroke="#10b981"/>
+            </g>
+            <text class="x24_cl" x="245" y="472">Z₁</text><text class="x24_cl" x="380" y="472">Z₂</text><text class="x24_cl" x="515" y="472">Z₃</text>
+            <text class="x24_an" x="580" y="454">3 × 512</text>
+            <!-- MHA block -->
+            <line class="x24_up" x1="380" y1="484" x2="380" y2="462"/>
+            <rect class="x24_blk" x="195" y="486" width="370" height="34" fill="#fef9c3" stroke="#eab308"/>
+            <text class="x24_bt" x="380" y="500">Multi-Head Self-Attention (h=8)</text>
+            <text class="x24_cl" x="380" y="514">Q,K,V = X·W (512×64) · scores 3×3 · ÷8 · softmax · ×V · concat · ·Wₒ</text>
+            <text class="x24_an" x="580" y="500">see internals ↓</text>
+            <!-- X vectors -->
+            <line class="x24_up" x1="380" y1="540" x2="380" y2="520"/>
+            <g>
+              <rect class="x24_blk" x="210" y="542" width="70" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+              <rect class="x24_blk" x="345" y="542" width="70" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+              <rect class="x24_blk" x="480" y="542" width="70" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+            </g>
+            <text class="x24_cl" x="245" y="576">X₁</text><text class="x24_cl" x="380" y="576">X₂</text><text class="x24_cl" x="515" y="576">X₃</text>
+            <text class="x24_an" x="580" y="558">X = E + P → 3 × 512</text>
+            <!-- add + PE -->
+            <line class="x24_up" x1="380" y1="600" x2="380" y2="566"/>
+            <circle cx="380" cy="606" r="11" fill="#fff" stroke="#94a3b8"/><text class="x24_bt" x="380" y="610">+</text>
+            <!-- PE side box -->
+            <rect class="x24_blk" x="40" y="588" width="120" height="36" fill="#dbeafe" stroke="#3b82f6"/>
+            <text class="x24_cl" x="100" y="603">Positional Enc.</text><text class="x24_cl" x="100" y="617">sin / cos</text>
+            <line class="x24_up" x1="160" y1="606" x2="367" y2="606"/>
+            <text class="x24_an" x="170" y="640">P : 3 × 512</text>
+            <!-- E vectors -->
+            <line class="x24_up" x1="380" y1="630" x2="380" y2="618"/>
+            <g>
+              <rect class="x24_blk" x="210" y="632" width="70" height="22" fill="#eef2ff" stroke="#c7d2fe"/>
+              <rect class="x24_blk" x="345" y="632" width="70" height="22" fill="#eef2ff" stroke="#c7d2fe"/>
+              <rect class="x24_blk" x="480" y="632" width="70" height="22" fill="#eef2ff" stroke="#c7d2fe"/>
+            </g>
+            <text class="x24_cl" x="245" y="666">E₁</text><text class="x24_cl" x="380" y="666">E₂</text><text class="x24_cl" x="515" y="666">E₃</text>
+            <text class="x24_an" x="580" y="648">Embedding → 3 × 512</text>
+            <!-- Embedding block -->
+            <line class="x24_up" x1="380" y1="678" x2="380" y2="656"/>
+            <rect class="x24_blk" x="195" y="680" width="370" height="28" fill="#fef9c3" stroke="#eab308"/><text class="x24_bt" x="380" y="699">Embedding layer (512-dim)</text>
+            <!-- words -->
+            <line class="x24_up" x1="380" y1="726" x2="380" y2="708"/>
+            <rect class="x24_blk" x="212" y="728" width="66" height="24" fill="#bbf7d0" stroke="#16a34a"/><text class="x24_bt" x="245" y="745">How</text>
+            <rect class="x24_blk" x="347" y="728" width="66" height="24" fill="#bbf7d0" stroke="#16a34a"/><text class="x24_bt" x="380" y="745">are</text>
+            <rect class="x24_blk" x="482" y="728" width="66" height="24" fill="#bbf7d0" stroke="#16a34a"/><text class="x24_bt" x="515" y="745">you</text>
+            <!-- tokenizer -->
+            <line class="x24_up" x1="380" y1="774" x2="380" y2="752"/>
+            <rect class="x24_blk" x="195" y="776" width="370" height="28" fill="#fef9c3" stroke="#eab308"/><text class="x24_bt" x="380" y="795">Tokenizer</text>
+            <line class="x24_up" x1="380" y1="826" x2="380" y2="804"/>
+            <text class="x24_bt" x="380" y="840">"How are you"</text>
+            <!-- RESIDUAL (skip) connections -->
+            <defs><marker id="ers" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7c3aed"/></marker></defs>
+            <path d="M210,553 L165,553 L165,414 L367,414" fill="none" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ers)"/>
+            <path d="M210,331 L150,331 L150,140 L367,140" fill="none" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ers)"/>
+            <text x="178" y="500" fill="#7c3aed" font-size="10.5" transform="rotate(-90 178,500)">residual: X bypasses attention</text>
+            <text x="163" y="270" fill="#7c3aed" font-size="10.5" transform="rotate(-90 163,270)">residual: Zₙ bypasses FFN</text>
+          </svg>
+          <div class="cap">Encoder data-flow. Every vector band is a 3×512 matrix (one row per token); the red labels track the shape as it changes through the FFN's 512→2048→512. The <b style="color:#7c3aed">purple dashed</b> lines are the <b>residual (skip) connections</b> — the sublayer input is added back at each ⊕ before LayerNorm.</div>
+        </div>
+
+        <h3>Attention internals — the matrix order at every step</h3>
+        <p>This is the part you asked for: each state is a matrix of a stated order, then a specific operation
+        (dot with Kᵀ, scale, softmax, ×V) produces the next. Shown for <b>one head</b> (the other 7 run in
+        parallel, then concatenate).</p>
+
+        <div class="fig">
+          <svg viewBox="0 0 720 560" role="img" aria-label="Self-attention internals with matrix shapes">
+            <defs><marker id="ia" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>
+              .x25_bx{rx:8} .x25_bt{font-size:12.5px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x25_sh{font-size:12px;fill:#c0392b;font-family:monospace;text-anchor:middle}
+              .x25_op{font-size:11.5px;fill:#1e3a8a;text-anchor:middle;font-style:italic}
+              .x25_a{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#ia)}
+            </style>
+            <!-- X -->
+            <rect class="x25_bx" x="300" y="20" width="120" height="40" fill="#fde0e0" stroke="#fca5a5"/>
+            <text class="x25_bt" x="360" y="40">X (input)</text><text class="x25_sh" x="360" y="55">3 × 512</text>
+            <!-- to Q K V -->
+            <text class="x25_op" x="360" y="82">× W_Q , W_K , W_V&nbsp;&nbsp;(each 512 × 64)</text>
+            <line class="x25_a" x1="330" y1="60" x2="170" y2="104"/>
+            <line class="x25_a" x1="360" y1="60" x2="360" y2="104"/>
+            <line class="x25_a" x1="390" y1="60" x2="555" y2="104"/>
+            <rect class="x25_bx" x="110" y="106" width="120" height="40" fill="#fde68a" stroke="#eab308"/><text class="x25_bt" x="170" y="126">Q</text><text class="x25_sh" x="170" y="141">3 × 64</text>
+            <rect class="x25_bx" x="300" y="106" width="120" height="40" fill="#bfdbfe" stroke="#3b82f6"/><text class="x25_bt" x="360" y="126">K</text><text class="x25_sh" x="360" y="141">3 × 64</text>
+            <rect class="x25_bx" x="495" y="106" width="120" height="40" fill="#bbf7d0" stroke="#16a34a"/><text class="x25_bt" x="555" y="126">V</text><text class="x25_sh" x="555" y="141">3 × 64</text>
+            <!-- Q,K -> scores -->
+            <text class="x25_op" x="265" y="178">Q · Kᵀ&nbsp;&nbsp;(3×64)·(64×3)</text>
+            <line class="x25_a" x1="170" y1="146" x2="300" y2="196"/>
+            <line class="x25_a" x1="360" y1="146" x2="330" y2="196"/>
+            <rect class="x25_bx" x="270" y="198" width="120" height="40" fill="#f1f5f9" stroke="#94a3b8"/><text class="x25_bt" x="330" y="218">scores</text><text class="x25_sh" x="330" y="233">3 × 3</text>
+            <!-- scale -->
+            <text class="x25_op" x="470" y="222">÷ √d_k = ÷ 8</text>
+            <line class="x25_a" x1="390" y1="218" x2="430" y2="218"/>
+            <rect class="x25_bx" x="435" y="198" width="120" height="40" fill="#f1f5f9" stroke="#94a3b8"/><text class="x25_bt" x="495" y="218">scaled</text><text class="x25_sh" x="495" y="233">3 × 3</text>
+            <!-- softmax -->
+            <text class="x25_op" x="495" y="262">softmax (per row)</text>
+            <line class="x25_a" x1="495" y1="238" x2="495" y2="280"/>
+            <rect class="x25_bx" x="435" y="282" width="120" height="40" fill="#fce7f3" stroke="#ec4899"/><text class="x25_bt" x="495" y="302">A (weights)</text><text class="x25_sh" x="495" y="317">3 × 3</text>
+            <!-- A x V -> head -->
+            <text class="x25_op" x="430" y="356">A · V&nbsp;&nbsp;(3×3)·(3×64)</text>
+            <line class="x25_a" x1="495" y1="322" x2="430" y2="372"/>
+            <line class="x25_a" x1="575" y1="146" x2="575" y2="360"/><text class="x25_op" x="630" y="250">V reused</text>
+            <line class="x25_a" x1="575" y1="360" x2="430" y2="378"/>
+            <rect class="x25_bx" x="300" y="374" width="160" height="40" fill="#ddd6fe" stroke="#7c3aed"/><text class="x25_bt" x="380" y="394">head₁ output</text><text class="x25_sh" x="380" y="409">3 × 64</text>
+            <!-- concat -->
+            <text class="x25_op" x="380" y="438">concat head₁…head₈</text>
+            <line class="x25_a" x1="380" y1="414" x2="380" y2="456"/>
+            <rect class="x25_bx" x="290" y="458" width="180" height="40" fill="#e0e7ff" stroke="#6366f1"/><text class="x25_bt" x="380" y="478">Concat(8 heads)</text><text class="x25_sh" x="380" y="493">3 × 512</text>
+            <!-- Wo -->
+            <text class="x25_op" x="380" y="520">· W_O&nbsp;&nbsp;(512 × 512)</text>
+            <line class="x25_a" x1="380" y1="498" x2="380" y2="534"/>
+            <rect class="x25_bx" x="300" y="0" width="0" height="0"/>
+            <rect class="x25_bx" x="295" y="536" width="170" height="22" fill="#d1fae5" stroke="#10b981"/><text class="x25_bt" x="380" y="552">Z output → 3 × 512</text>
+          </svg>
+          <div class="cap">One head: X→Q,K,V (×W, 512→64) · Q·Kᵀ→scores(3×3) · ÷8 · softmax→A · A·V→head(3×64) · concat 8 → ·W<sub>O</sub> → Z(3×512).</div>
+        </div>
+
+        <h3>Encoder shape-journey table</h3>
+        <div class="scroll-x">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>State</th><th>Matrix order</th><th>Operation to get here</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Tokens "How/are/you"</td><td>3 tokens</td><td>tokenizer splits text</td></tr>
+            <tr><td>2</td><td>Embedding E</td><td>3 × 512</td><td>embedding lookup (one 512-vec per token)</td></tr>
+            <tr><td>3</td><td>Positional P</td><td>3 × 512</td><td>sin/cos by position</td></tr>
+            <tr><td>4</td><td>X = E + P</td><td>3 × 512</td><td>element-wise add</td></tr>
+            <tr><td>5</td><td>Q, K, V (per head)</td><td>3 × 64</td><td>X · W (each W is 512 × 64)</td></tr>
+            <tr><td>6</td><td>scores</td><td>3 × 3</td><td><b>Q · Kᵀ</b> = (3×64)·(64×3)</td></tr>
+            <tr><td>7</td><td>scaled</td><td>3 × 3</td><td><b>÷ √d<sub>k</sub> = ÷ 8</b></td></tr>
+            <tr><td>8</td><td>A (attention weights)</td><td>3 × 3</td><td>row-wise <b>softmax</b></td></tr>
+            <tr><td>9</td><td>head output</td><td>3 × 64</td><td><b>A · V</b> = (3×3)·(3×64)</td></tr>
+            <tr><td>10</td><td>concat(8 heads)</td><td>3 × 512</td><td>concatenate 8 × (3×64)</td></tr>
+            <tr><td>11</td><td>Z (attn output)</td><td>3 × 512</td><td>concat · W<sub>O</sub> (512 × 512)</td></tr>
+            <tr><td>12</td><td>X + Z</td><td>3 × 512</td><td>residual add</td></tr>
+            <tr><td>13</td><td>Z<sub>norm</sub></td><td>3 × 512</td><td>LayerNorm (per token)</td></tr>
+            <tr><td>14</td><td>hidden</td><td>3 × 2048</td><td>relu( Z<sub>norm</sub> · W₁ + b₁ ), W₁ 512×2048</td></tr>
+            <tr><td>15</td><td>Y (FFN output)</td><td>3 × 512</td><td>hidden · W₂ + b₂, W₂ 2048×512</td></tr>
+            <tr><td>16</td><td>Z<sub>norm</sub> + Y</td><td>3 × 512</td><td>residual add</td></tr>
+            <tr><td>17</td><td>Encoder output</td><td>3 × 512</td><td>LayerNorm → feeds next block / decoder K,V</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="callout c-note">
+          <div class="ico">🔢</div>
+          <div class="body">
+            <b>Concrete numbers for the attention block</b>
+            <p>The full numeric version (with toy d<sub>k</sub>=2 instead of 64 so it's hand-computable) is the
+            worked example in <a href="#c3">Chapter 3</a>: Q·Kᵀ = <span class="mono">[[0,4,2],[4,0,2],[2,2,2]]</span>
+            → ÷√2 → softmax → ×V → outputs. Here the <i>shapes</i> are the real paper dims; the <i>arithmetic</i>
+            is identical, just wider.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- Chapter 13 — Decoder flow + inference ---- -->
+      <section class="part" id="c13">
+        <span class="badge b-eval">Chapter 13</span>
+        <h2 class="title">Decoder Flow &amp; Inference — Shapes at Every State</h2>
+
+        <span class="chip">Setup</span>
+        <p>Translate <i>"We are friends" → "Hum dost hai"</i>. The decoder runs 4 preprocessing steps then
+        three sub-blocks. The encoder output (<b>3 × 512</b>, from "We are friends") is reused as <b>K, V</b>
+        in cross-attention.</p>
+        <div class="fig">
+          <svg viewBox="0 0 700 150" role="img" aria-label="Decoder input preprocessing">
+            <defs><marker id="da" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x26_s{font-size:12px;fill:#1c2330;text-anchor:middle;font-weight:600}.x26_c{font-size:10.5px;fill:#5b6577;text-anchor:middle}.x26_a{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#da)}</style>
+            <rect x="20" y="50" width="140" height="44" rx="9" fill="#fce7f3" stroke="#ec4899"/><text class="x26_s" x="90" y="70">1 · Shifting</text><text class="x26_c" x="90" y="86">prepend ⟨SOS⟩</text>
+            <rect x="190" y="50" width="140" height="44" rx="9" fill="#fef9c3" stroke="#eab308"/><text class="x26_s" x="260" y="70">2 · Tokenize</text><text class="x26_c" x="260" y="86">Hum / dost / hai</text>
+            <rect x="360" y="50" width="140" height="44" rx="9" fill="#eef2ff" stroke="#c7d2fe"/><text class="x26_s" x="430" y="70">3 · Embedding</text><text class="x26_c" x="430" y="86">→ each 512-dim</text>
+            <rect x="530" y="50" width="150" height="44" rx="9" fill="#dbeafe" stroke="#3b82f6"/><text class="x26_s" x="605" y="70">4 · + Positional</text><text class="x26_c" x="605" y="86">→ 4 × 512</text>
+            <line class="x26_a" x1="160" y1="72" x2="188" y2="72"/><line class="x26_a" x1="330" y1="72" x2="358" y2="72"/><line class="x26_a" x1="500" y1="72" x2="528" y2="72"/>
+            <text class="x26_c" x="350" y="124">⟨SOS⟩ Hum dost hai  →  4 token rows of 512 dims each</text>
+          </svg>
+          <div class="cap">Decoder preprocessing: shift (teacher forcing), tokenize, embed, add positional encoding → a 4×512 matrix.</div>
+        </div>
+
+        <div class="fig">
+          <svg viewBox="0 0 820 980" role="img" aria-label="Decoder full data flow with residuals and matrix shapes">
+            <defs>
+              <marker id="dec" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker>
+              <marker id="decp" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#7c3aed"/></marker>
+            </defs>
+            <style>
+              .x27_blk{rx:8}
+              .x27_bt{font-size:12.5px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x27_cl{font-size:11px;fill:#5b6577;text-anchor:middle}
+              .x27_an{font-size:11px;fill:#c0392b;font-family:monospace}
+              .x27_fm{font-size:10.5px;fill:#b91c1c;font-family:monospace;text-anchor:middle}
+              .x27_up{stroke:#94a3b8;stroke-width:1.6;fill:none;marker-end:url(#dec)}
+              .x27_sk{stroke:#7c3aed;stroke-width:2;stroke-dasharray:5 4;fill:none;marker-end:url(#decp)}
+              .x27_add{fill:#fff;stroke:#7c3aed;stroke-width:2}
+              .x27_skl{fill:#7c3aed;font-size:10px}
+            </style>
+            <text class="x27_cl" x="380" y="20" font-weight="700">↑ predicted next-token probabilities</text>
+            <text class="x27_fm" x="380" y="38">P(next) = argmax · softmax(logits)</text>
+            <rect class="x27_blk" x="240" y="48" width="280" height="32" fill="#3b82f6" stroke="#2563eb"/><text class="x27_bt" x="380" y="68" fill="#fff">Linear → Softmax (over vocab)</text>
+            <text class="x27_an" x="600" y="60">logits: 1×512 · (512×V)</text><text class="x27_an" x="600" y="76">→ 1 × V</text>
+            <text class="x27_cl" x="380" y="114">take last token row  →  1 × 512</text>
+            <line class="x27_up" x1="380" y1="108" x2="380" y2="84"/>
+            <line class="x27_up" x1="380" y1="148" x2="380" y2="122"/>
+            <rect class="x27_blk" x="200" y="150" width="360" height="30" fill="#e2e8f0" stroke="#94a3b8"/><text class="x27_bt" x="380" y="170">Add &amp; Norm</text>
+            <text class="x27_an" x="600" y="169">Z₃ = 4 × 512</text>
+            <circle class="x27_add" cx="380" cy="205" r="12"/><text class="x27_bt" x="380" y="210">+</text>
+            <line class="x27_up" x1="380" y1="193" x2="380" y2="182"/>
+            <rect class="x27_blk" x="200" y="230" width="360" height="46" fill="#eff6ff" stroke="#3b82f6"/><text class="x27_bt" x="380" y="250">Feed-Forward Network</text><text class="x27_fm" x="380" y="267">relu(Z₂·W₁+b₁)·W₂+b₂</text>
+            <text class="x27_an" x="600" y="248">W₁ 512×2048</text><text class="x27_an" x="600" y="264">W₂ 2048×512</text>
+            <line class="x27_up" x1="380" y1="230" x2="380" y2="219"/>
+            <circle cx="380" cy="300" r="4" fill="#1c2330"/>
+            <line class="x27_up" x1="380" y1="300" x2="380" y2="278"/>
+            <line class="x27_up" x1="380" y1="320" x2="380" y2="302"/>
+            <rect class="x27_blk" x="200" y="320" width="360" height="30" fill="#e2e8f0" stroke="#94a3b8"/><text class="x27_bt" x="380" y="340">Add &amp; Norm</text>
+            <text class="x27_an" x="600" y="339">Z₂ = 4 × 512</text>
+            <circle class="x27_add" cx="380" cy="375" r="12"/><text class="x27_bt" x="380" y="380">+</text>
+            <line class="x27_up" x1="380" y1="363" x2="380" y2="352"/>
+            <rect class="x27_blk" x="200" y="400" width="360" height="46" fill="#fbcfe8" stroke="#ec4899"/><text class="x27_bt" x="380" y="420">Cross-Attention</text><text class="x27_fm" x="380" y="437">Q=decoder · K,V=encoder · scores 4×3</text>
+            <line class="x27_up" x1="380" y1="400" x2="380" y2="389"/>
+            <rect class="x27_blk" x="620" y="398" width="190" height="48" fill="#d1fae5" stroke="#10b981"/><text class="x27_cl" x="715" y="418">Encoder output</text><text class="x27_cl" x="715" y="434">K, V = 3 × 512</text>
+            <line class="x27_up" x1="620" y1="422" x2="562" y2="422"/>
+            <circle cx="380" cy="470" r="4" fill="#1c2330"/>
+            <line class="x27_up" x1="380" y1="470" x2="380" y2="448"/>
+            <line class="x27_up" x1="380" y1="490" x2="380" y2="472"/>
+            <rect class="x27_blk" x="200" y="490" width="360" height="30" fill="#e2e8f0" stroke="#94a3b8"/><text class="x27_bt" x="380" y="510">Add &amp; Norm</text>
+            <text class="x27_an" x="600" y="509">Z₁ = 4 × 512</text>
+            <circle class="x27_add" cx="380" cy="545" r="12"/><text class="x27_bt" x="380" y="550">+</text>
+            <line class="x27_up" x1="380" y1="533" x2="380" y2="522"/>
+            <rect class="x27_blk" x="200" y="570" width="360" height="46" fill="#fbcfe8" stroke="#ec4899"/><text class="x27_bt" x="380" y="590">Masked Multi-Head Self-Attention</text><text class="x27_fm" x="380" y="607">scores 4×4 + causal mask · ÷8 · softmax · ×V</text>
+            <text class="x27_an" x="600" y="588">Q,K,V 4×64</text><text class="x27_an" x="600" y="604">scores 4×4</text>
+            <line class="x27_up" x1="380" y1="570" x2="380" y2="559"/>
+            <circle cx="380" cy="640" r="4" fill="#1c2330"/>
+            <line class="x27_up" x1="380" y1="640" x2="380" y2="618"/>
+            <line class="x27_up" x1="380" y1="660" x2="380" y2="642"/>
+            <rect class="x27_blk" x="180" y="660" width="60" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+            <rect class="x27_blk" x="290" y="660" width="60" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+            <rect class="x27_blk" x="400" y="660" width="60" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+            <rect class="x27_blk" x="510" y="660" width="60" height="22" fill="#fde0e0" stroke="#fca5a5"/>
+            <text class="x27_an" x="600" y="675">X = E + P  → 4×512</text>
+            <line class="x27_up" x1="380" y1="700" x2="380" y2="684"/>
+            <circle cx="380" cy="712" r="11" fill="#fff" stroke="#94a3b8"/><text class="x27_bt" x="380" y="716">+</text>
+            <rect class="x27_blk" x="40" y="694" width="120" height="36" fill="#dbeafe" stroke="#3b82f6"/><text class="x27_cl" x="100" y="709">Positional Enc.</text><text class="x27_cl" x="100" y="723">sin / cos</text>
+            <line class="x27_up" x1="160" y1="712" x2="367" y2="712"/>
+            <line class="x27_up" x1="380" y1="735" x2="380" y2="725"/>
+            <rect class="x27_blk" x="180" y="737" width="60" height="22" fill="#eef2ff" stroke="#c7d2fe"/>
+            <rect class="x27_blk" x="290" y="737" width="60" height="22" fill="#eef2ff" stroke="#c7d2fe"/>
+            <rect class="x27_blk" x="400" y="737" width="60" height="22" fill="#eef2ff" stroke="#c7d2fe"/>
+            <rect class="x27_blk" x="510" y="737" width="60" height="22" fill="#eef2ff" stroke="#c7d2fe"/>
+            <text class="x27_cl" x="210" y="773">E₁</text><text class="x27_cl" x="320" y="773">E₂</text><text class="x27_cl" x="430" y="773">E₃</text><text class="x27_cl" x="540" y="773">E₄</text>
+            <text class="x27_an" x="600" y="752">Embedding 4×512</text>
+            <line class="x27_up" x1="380" y1="785" x2="380" y2="761"/>
+            <rect class="x27_blk" x="200" y="787" width="360" height="28" fill="#fef9c3" stroke="#eab308"/><text class="x27_bt" x="380" y="806">Embedding (512-dim)</text>
+            <line class="x27_up" x1="380" y1="837" x2="380" y2="815"/>
+            <rect class="x27_blk" x="180" y="839" width="60" height="24" fill="#bbf7d0" stroke="#16a34a"/><text class="x27_bt" x="210" y="856" font-size="10">⟨SOS⟩</text>
+            <rect class="x27_blk" x="290" y="839" width="60" height="24" fill="#bbf7d0" stroke="#16a34a"/><text class="x27_bt" x="320" y="856">Hum</text>
+            <rect class="x27_blk" x="400" y="839" width="60" height="24" fill="#bbf7d0" stroke="#16a34a"/><text class="x27_bt" x="430" y="856">dost</text>
+            <rect class="x27_blk" x="510" y="839" width="60" height="24" fill="#bbf7d0" stroke="#16a34a"/><text class="x27_bt" x="540" y="856">hai</text>
+            <text class="x27_an" x="600" y="855">shifted target</text>
+            <line class="x27_up" x1="380" y1="887" x2="380" y2="863"/>
+            <rect class="x27_blk" x="200" y="889" width="360" height="28" fill="#fce7f3" stroke="#ec4899"/><text class="x27_bt" x="380" y="908">Shift right (prepend ⟨SOS⟩)</text>
+            <line class="x27_up" x1="380" y1="939" x2="380" y2="917"/>
+            <text class="x27_bt" x="380" y="954">target: "Hum dost hai"</text>
+            <path class="x27_sk" d="M380,640 L140,640 L140,545 L367,545"/>
+            <path class="x27_sk" d="M380,470 L140,470 L140,375 L367,375"/>
+            <path class="x27_sk" d="M380,300 L140,300 L140,205 L367,205"/>
+            <text class="x27_skl" transform="rotate(-90 126,600)" x="126" y="600">residual skip</text>
+            <text class="x27_skl" transform="rotate(-90 126,430)" x="126" y="430">residual skip</text>
+            <text class="x27_skl" transform="rotate(-90 126,260)" x="126" y="260">residual skip</text>
+          </svg>
+          <div class="cap">Decoder data-flow (read bottom→top) with <b style="color:#7c3aed">residual skip connections</b> (purple dashed) around all three sub-layers — each ⊕-added then LayerNorm. Red labels give the matrix shape and operation at every state; cross-attention scores are 4×3 (target × source).</div>
+        </div>
+
+        <h3>Masked self-attention internals — matrix order at every step</h3>
+        <p>Same pipeline as encoder self-attention (<a href="#c12">Ch 12</a>), with one extra step: the
+        <b>causal mask</b> adds −∞ to future positions before softmax. Shapes shown for the 4-token decoder input.</p>
+        <div class="fig">
+          <svg viewBox="0 0 660 730" role="img" aria-label="Masked self-attention internals math">
+            <defs><marker id="dmka" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.dmk_bx{rx:11;fill:#fce7f3;stroke:#ec4899}.dmk_bt{font-size:13px;font-weight:600;fill:#be185d;text-anchor:middle}
+              .dmk_sh{font-size:11.5px;font-family:monospace;fill:#c0392b;text-anchor:middle}
+              .dmk_fm{font-size:12px;font-family:monospace;fill:#b91c1c;text-anchor:middle}.dmk_ar{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#dmka)}</style>
+            <rect class="dmk_bx" x="120" y="24" width="420" height="44"/><text class="dmk_bt" x="330" y="44">X — decoder input</text><text class="dmk_sh" x="330" y="61">4 × 512</text>
+            <line class="dmk_ar" x1="330" y1="68" x2="330" y2="128"/><text class="dmk_fm" x="330" y="98">Q = X·Wᵩ , K = X·Wₖ , V = X·Wᵥ  (each 4×64)</text>
+            <rect class="dmk_bx" x="120" y="130" width="420" height="44"/><text class="dmk_bt" x="330" y="150">Q , K , V</text><text class="dmk_sh" x="330" y="167">each 4 × 64</text>
+            <line class="dmk_ar" x1="330" y1="174" x2="330" y2="234"/><text class="dmk_fm" x="330" y="204">S = Q·Kᵀ   (4×64)·(64×4)</text>
+            <rect class="dmk_bx" x="120" y="236" width="420" height="44"/><text class="dmk_bt" x="330" y="256">raw scores  S</text><text class="dmk_sh" x="330" y="273">4 × 4</text>
+            <line class="dmk_ar" x1="330" y1="280" x2="330" y2="340"/><text class="dmk_fm" x="330" y="310">+ M :  Mᵢⱼ = −∞  for j &gt; i   (causal mask)</text>
+            <rect class="dmk_bx" x="120" y="342" width="420" height="44"/><text class="dmk_bt" x="330" y="362">masked scores</text><text class="dmk_sh" x="330" y="379">4 × 4  (upper-tri = −∞)</text>
+            <line class="dmk_ar" x1="330" y1="386" x2="330" y2="446"/><text class="dmk_fm" x="330" y="416">÷ √dₖ = ÷8 , softmax per row</text>
+            <rect class="dmk_bx" x="120" y="448" width="420" height="44"/><text class="dmk_bt" x="330" y="468">A — attention weights</text><text class="dmk_sh" x="330" y="485">4 × 4  lower-triangular</text>
+            <line class="dmk_ar" x1="330" y1="492" x2="330" y2="552"/><text class="dmk_fm" x="330" y="522">head = A·V   (4×4)·(4×64)</text>
+            <rect class="dmk_bx" x="120" y="554" width="420" height="44"/><text class="dmk_bt" x="330" y="574">head</text><text class="dmk_sh" x="330" y="591">4 × 64</text>
+            <line class="dmk_ar" x1="330" y1="598" x2="330" y2="658"/><text class="dmk_fm" x="330" y="628">concat 8 heads → · Wₒ (512×512)</text>
+            <rect class="dmk_bx" x="120" y="660" width="420" height="44"/><text class="dmk_bt" x="330" y="680">Z₁  (masked-attn output)</text><text class="dmk_sh" x="330" y="697">4 × 512</text>
+          </svg>
+          <div class="cap">Masked self-attention math flow — identical to encoder self-attention except the causal mask sets future scores to −∞ before softmax, making A lower-triangular.</div>
+        </div>
+
+        <h3>Cross-attention internals — why the score matrix is rectangular</h3>
+        <p>In <b>self</b>-attention scores are square (n×n). In <b>cross</b>-attention the Query has the
+        <i>target</i> length and the Keys have the <i>source</i> length, so the score matrix is
+        <b>target × source</b> (here 4 × 3) — this is exactly the alignment grid.</p>
+        <div class="fig">
+          <svg viewBox="0 0 720 300" role="img" aria-label="Cross attention shapes">
+            <defs><marker id="ca" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/></marker></defs>
+            <style>.x28_bx{rx:8}.x28_bt{font-size:12px;font-weight:600;fill:#1c2330;text-anchor:middle}
+              .x28_sh{font-size:12px;fill:#c0392b;font-family:monospace;text-anchor:middle}
+              .x28_op{font-size:11.5px;fill:#1e3a8a;text-anchor:middle;font-style:italic}.x28_a{stroke:#94a3b8;stroke-width:1.8;fill:none;marker-end:url(#ca)}</style>
+            <!-- decoder Q -->
+            <rect class="x28_bx" x="40" y="40" width="150" height="42" fill="#fbcfe8" stroke="#ec4899"/><text class="x28_bt" x="115" y="60">Decoder states</text><text class="x28_sh" x="115" y="75">Q : 4 × 64</text>
+            <!-- encoder K V -->
+            <rect class="x28_bx" x="40" y="150" width="150" height="42" fill="#d1fae5" stroke="#10b981"/><text class="x28_bt" x="115" y="170">Encoder K</text><text class="x28_sh" x="115" y="185">3 × 64</text>
+            <rect class="x28_bx" x="40" y="210" width="150" height="42" fill="#d1fae5" stroke="#10b981"/><text class="x28_bt" x="115" y="230">Encoder V</text><text class="x28_sh" x="115" y="245">3 × 64</text>
+            <!-- scores -->
+            <text class="x28_op" x="320" y="96">Q · Kᵀ&nbsp;(4×64)·(64×3)</text>
+            <line class="x28_a" x1="190" y1="62" x2="280" y2="110"/>
+            <line class="x28_a" x1="190" y1="171" x2="280" y2="125"/>
+            <rect class="x28_bx" x="285" y="100" width="120" height="42" fill="#f1f5f9" stroke="#94a3b8"/><text class="x28_bt" x="345" y="120">scores</text><text class="x28_sh" x="345" y="135">4 × 3</text>
+            <text class="x28_op" x="345" y="166">÷ √64 · softmax (rows)</text>
+            <line class="x28_a" x1="345" y1="142" x2="345" y2="182"/>
+            <rect class="x28_bx" x="285" y="184" width="120" height="42" fill="#fce7f3" stroke="#ec4899"/><text class="x28_bt" x="345" y="204">A (align)</text><text class="x28_sh" x="345" y="219">4 × 3</text>
+            <!-- A x V -->
+            <text class="x28_op" x="520" y="200">A · V&nbsp;(4×3)·(3×64)</text>
+            <line class="x28_a" x1="405" y1="205" x2="470" y2="205"/>
+            <line class="x28_a" x1="190" y1="231" x2="470" y2="215"/>
+            <rect class="x28_bx" x="475" y="184" width="150" height="42" fill="#ddd6fe" stroke="#7c3aed"/><text class="x28_bt" x="550" y="204">context</text><text class="x28_sh" x="550" y="219">4 × 64</text>
+            <text class="x28_op" x="550" y="250">concat 8 · ·Wₒ (512×512)</text>
+            <line class="x28_a" x1="550" y1="226" x2="550" y2="262"/>
+            <rect class="x28_bx" x="475" y="264" width="150" height="30" fill="#d1fae5" stroke="#10b981"/><text class="x28_bt" x="550" y="283">out → 4 × 512</text>
+          </svg>
+          <div class="cap">Cross-attention: Q (4×64, target) · Kᵀ (64×3, source) = scores 4×3 → softmax → ·V (3×64) → 4×64 → concat → ·W<sub>O</sub> → 4×512. The 4×3 grid is the translation alignment.</div>
+        </div>
+
+        <h3>Decoder shape-journey table</h3>
+        <div class="scroll-x">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>State</th><th>Matrix order</th><th>Operation to get here</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Shifted target ⟨SOS⟩ Hum dost hai</td><td>4 tokens</td><td>shift-right + tokenize</td></tr>
+            <tr><td>2</td><td>Embedding + Positional → X</td><td>4 × 512</td><td>lookup + sin/cos</td></tr>
+            <tr><td colspan="4" style="background:#fdf2f8;font-weight:700;color:#be185d">— Block A: Masked self-attention —</td></tr>
+            <tr><td>3</td><td>Q, K, V (per head)</td><td>4 × 64</td><td>X · W (512 × 64)</td></tr>
+            <tr><td>4</td><td>scores</td><td>4 × 4</td><td>Q · Kᵀ = (4×64)·(64×4)</td></tr>
+            <tr><td>5</td><td>masked scores</td><td>4 × 4</td><td><b>+ causal mask</b> (upper triangle → −∞)</td></tr>
+            <tr><td>6</td><td>A</td><td>4 × 4</td><td>÷ 8, then row softmax (lower-triangular)</td></tr>
+            <tr><td>7</td><td>head → concat → Z₁</td><td>4 × 512</td><td>A · V → concat 8 → · W<sub>O</sub>, then Add&amp;Norm</td></tr>
+            <tr><td colspan="4" style="background:#fdf2f8;font-weight:700;color:#be185d">— Block B: Cross-attention (reads encoder) —</td></tr>
+            <tr><td>8</td><td>Q (from decoder)</td><td>4 × 64</td><td>Z₁ · W<sub>Q</sub></td></tr>
+            <tr><td>9</td><td>K, V (from encoder output)</td><td>3 × 64</td><td>encoder 3×512 · W<sub>K</sub>, W<sub>V</sub></td></tr>
+            <tr><td>10</td><td>scores</td><td><b>4 × 3</b></td><td>Q · Kᵀ = (4×64)·(64×3) — target × source</td></tr>
+            <tr><td>11</td><td>A (alignment)</td><td>4 × 3</td><td>÷ 8, row softmax</td></tr>
+            <tr><td>12</td><td>context → Z₂</td><td>4 × 512</td><td>A · V (3×64) → concat → · W<sub>O</sub>, Add&amp;Norm</td></tr>
+            <tr><td colspan="4" style="background:#fdf2f8;font-weight:700;color:#be185d">— Block C: FFN + output head —</td></tr>
+            <tr><td>13</td><td>hidden</td><td>4 × 2048</td><td>relu(Z₂·W₁+b₁)</td></tr>
+            <tr><td>14</td><td>Z₃</td><td>4 × 512</td><td>·W₂+b₂, Add&amp;Norm</td></tr>
+            <tr><td>15</td><td>last-token vector</td><td>1 × 512</td><td>take the final row (next-word prediction)</td></tr>
+            <tr><td>16</td><td>logits</td><td>1 × V</td><td>· W<sub>vocab</sub> (512 × V)</td></tr>
+            <tr><td>17</td><td>probabilities</td><td>1 × V</td><td>softmax → argmax = next word</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <h3>Inference — autoregressive generation</h3>
+        <p>At inference the decoder runs once per output token, each time feeding back what it just produced
+        (the masking is what makes training with the full sentence equivalent to this step-by-step process).</p>
+        <div class="fig">
+          <svg viewBox="0 0 720 230" role="img" aria-label="Autoregressive decoding steps">
+            <defs><marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#16a34a"/></marker></defs>
+            <style>.x29_tok{font-size:12px;text-anchor:middle;fill:#1c2330}.x29_st{font-size:11px;fill:#5b6577;text-anchor:middle;font-weight:700}
+              .x29_out{font-size:13px;text-anchor:middle;fill:#16a34a;font-weight:700}.x29_ag{stroke:#16a34a;stroke-width:1.8;fill:none;marker-end:url(#ag)}</style>
+            <!-- step rows -->
+            <text class="x29_st" x="60" y="40">Step 1</text>
+            <rect x="110" y="26" width="60" height="24" rx="5" fill="#e0f2fe" stroke="#0ea5a4"/><text class="x29_tok" x="140" y="43">⟨SOS⟩</text>
+            <text class="x29_tok" x="210" y="43">→ decoder →</text>
+            <text class="x29_out" x="320" y="43">Hum</text>
+            <text class="x29_st" x="60" y="86">Step 2</text>
+            <rect x="110" y="72" width="60" height="24" rx="5" fill="#e0f2fe" stroke="#0ea5a4"/><text class="x29_tok" x="140" y="89">⟨SOS⟩</text>
+            <rect x="176" y="72" width="56" height="24" rx="5" fill="#dcfce7" stroke="#16a34a"/><text class="x29_tok" x="204" y="89">Hum</text>
+            <text class="x29_tok" x="280" y="89">→ decoder →</text>
+            <text class="x29_out" x="390" y="89">dost</text>
+            <text class="x29_st" x="60" y="132">Step 3</text>
+            <rect x="110" y="118" width="60" height="24" rx="5" fill="#e0f2fe" stroke="#0ea5a4"/><text class="x29_tok" x="140" y="135">⟨SOS⟩</text>
+            <rect x="176" y="118" width="56" height="24" rx="5" fill="#dcfce7" stroke="#16a34a"/><text class="x29_tok" x="204" y="135">Hum</text>
+            <rect x="238" y="118" width="56" height="24" rx="5" fill="#dcfce7" stroke="#16a34a"/><text class="x29_tok" x="266" y="135">dost</text>
+            <text class="x29_tok" x="345" y="135">→ decoder →</text>
+            <text class="x29_out" x="455" y="135">hai</text>
+            <text class="x29_st" x="60" y="178">Step 4</text>
+            <rect x="110" y="164" width="60" height="24" rx="5" fill="#e0f2fe" stroke="#0ea5a4"/><text class="x29_tok" x="140" y="181">⟨SOS⟩</text>
+            <rect x="176" y="164" width="56" height="24" rx="5" fill="#dcfce7" stroke="#16a34a"/><text class="x29_tok" x="204" y="181">Hum</text>
+            <rect x="238" y="164" width="56" height="24" rx="5" fill="#dcfce7" stroke="#16a34a"/><text class="x29_tok" x="266" y="181">dost</text>
+            <rect x="300" y="164" width="50" height="24" rx="5" fill="#dcfce7" stroke="#16a34a"/><text class="x29_tok" x="325" y="181">hai</text>
+            <text class="x29_tok" x="400" y="181">→ decoder →</text>
+            <text class="x29_out" x="500" y="181">⟨EOS⟩</text>
+            <!-- feedback arrows -->
+            <path class="x29_ag" d="M320,48 q60,18 -110,28"/>
+            <path class="x29_ag" d="M390,94 q60,18 -150,28"/>
+            <path class="x29_ag" d="M455,140 q60,18 -150,28"/>
+            <text class="x29_st" x="600" y="120" fill="#16a34a">each output is fed</text>
+            <text class="x29_st" x="600" y="138" fill="#16a34a">back as next input</text>
+          </svg>
+          <div class="cap">Autoregression: ⟨SOS⟩ → Hum → dost → hai → ⟨EOS⟩. Every generated token is appended and the decoder re-runs until ⟨EOS⟩.</div>
+        </div>
+
+        <span class="chip">Worked numbers — one cross-attention query</span>
+        <p>Reusing the verified example from <a href="#c10">Chapter 10</a> for a single decoder query over the
+        3 source tokens: scaled scores <span class="mono">[0.707, 2.828, 1.768]</span> → softmax
+        <span class="mono">[0.082, 0.682, 0.236]</span> → context <span class="mono">[1.082, 1.0]</span>. The
+        shapes above (4×3) just stack four such query rows.</p>
+
+        <div class="callout c-insight">
+          <div class="ico">🧮</div>
+          <div class="body">
+            <b>The one rule for tracking shapes</b>
+            <p>A matrix multiply <span class="mono">(a × b)·(b × c) = (a × c)</span> — the inner dimensions must
+            match and cancel. Every state here follows it: <span class="mono">Q·Kᵀ</span> cancels d<sub>k</sub>
+            (=64) leaving token×token; <span class="mono">A·V</span> cancels the token dim leaving token×64;
+            <span class="mono">concat·W<sub>O</sub></span> maps 512→512. Master that and you can derive any
+            shape in the Transformer yourself.</p>
+          </div>
+        </div>
+
+        <div class="summary-box">
+          <b>Part 9 summary —</b> Encoder: 3×512 flows through self-attention (Q/K/V 3×64 · scores 3×3 · ÷8 ·
+          softmax · ×V · concat · W<sub>O</sub>) and FFN (512→2048→512), all residual+LayerNorm. Decoder adds
+          <b>masked</b> self-attention (4×4 causal) and <b>cross</b>-attention (scores 4×3, target×source from
+          the encoder), then Linear→Softmax → next token, looped autoregressively until ⟨EOS⟩.
+        </div>
+      </section>
+
+      <div style="height:40px"></div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
